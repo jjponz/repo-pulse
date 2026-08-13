@@ -19,8 +19,8 @@ base: main
 # actualización de STATE.md no te vuelve a dejar atrás.
 last_commit: ""
 github_issue: null
-you_are_here: "Slice #1 (esqueleto) entregado y EN REVIEW (2026-08-13): el agente cerró el gate plan, abrió el PR #8 (feat/1 → main, no draft, CI verde) y liberó su claim — issue #1 en status:in-review, sin sesión abierta (normal en in-review, no es anomalía). Issues #2–#7 siguen en backlog: no hay nada más en vuelo."
-next_action: "Cerrar el gate apply del #1: revisar el PR #8 y mergearlo (el loop NO lo impide, el que cierra el gate eres tú); luego cerrar el issue #1 y promover a status:ready el siguiente slice para despacharlo con /ct-next"
+you_are_here: "Slice #1 (esqueleto) CERRADO (2026-08-13): gate apply cerrado a mano en el issue #1 con evidencia (CI verde + cadena npm ci/build/test/lint verificada en local), PR #8 mergeado en squash (9824d3d) e issue #1 cerrado automáticamente. Su label status:in-review sigue puesto sobre el issue cerrado: NO es anomalía, un issue cerrado se cae de la cola igualmente. Nada en vuelo: #2–#7 en status:backlog."
+next_action: "Elegir el siguiente slice (orden §9 del spec: #2 análisis pulso y gente), promoverlo a status:ready y despacharlo con /ct-next (con CT_ACCOUNT_PERSONAL_DIR/CT_AGENT_BIN_PERSONAL, ver gotchas); después, gate plan del slice despachado"
 # blocked: null = NO bloqueado. Si el trabajo no puede continuar (una decisión
 # lo paró, el plan resultó falso, falta algo de fuera), NO lo escribas en prosa
 # dentro de next_action: ponlo aquí. El hook de SessionStart lo anuncia al
@@ -30,19 +30,23 @@ next_action: "Cerrar el gate apply del #1: revisar el PR #8 y mergearlo (el loop
 blocked: null
 # verify: la comprobación PENDIENTE que valida este trabajo AL TERMINAR — nunca
 # un hecho ya comprobado, aunque se redacte en presente.
-verify: "gh pr view 8 --json state,mergedAt sale MERGED y gh issue view 1 sale CLOSED sin status:in-review"
+verify: "el siguiente slice sale de /ct-next con claim in-progress, worktree y agente vivo, y su plan llega como comentario del issue"
 tasks: []
 ---
 ## Current State
 Epic groomeado (milestone + issues #1–#7 + labels + Project v2). Slice #1
-(esqueleto: monorepo npm workspaces con CI) implementado en .worktrees/1 sobre
-la rama feat/1 y entregado como PR #8, abierto y pendiente de mi review. CI del
-PR en verde. Nada más en vuelo: #2–#7 en status:backlog.
+(esqueleto: monorepo npm workspaces con CI) entregado y mergeado: PR #8 en
+squash sobre main (9824d3d), issue #1 cerrado. Quedan #2–#7 en status:backlog y
+nada en vuelo, así que el loop está parado hasta que promueva el siguiente.
 ## Immediate Next Steps
-1. Revisar el PR #8 y cerrar el gate apply (mergear).
-2. Cerrar el issue #1 y limpiar su label status:in-review.
-3. Elegir el siguiente slice de #2–#7, promoverlo a status:ready y correr /ct-next.
+1. Promover el siguiente slice a status:ready (orden §9: #2) y correr /ct-next.
+2. Retirar el worktree .worktrees/1 y la rama feat/1, ya mergeados.
+3. Gate plan del slice despachado: revisar su comentario de plan y responder OK.
 ## Decisions Made
+- Gate apply del #1 cerrado a mano (2026-08-13): el slice no toca ningún entorno
+  real —sin deploy ni apply ni scripts contra datos—, y la evidencia fue el CI
+  en verde del PR más la cadena npm ci/build/test/lint corrida en local sobre un
+  checkout limpio.
 ## Gotchas/Constraints
 - `/ct-next` en este repo necesita `CT_ACCOUNT_PERSONAL_DIR=$HOME/.claude` y
   `CT_AGENT_BIN_PERSONAL=claude`: no existen ni `~/.claude-personal` ni el
