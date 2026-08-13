@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { afterEach, expect, test } from 'vitest'
@@ -22,6 +23,31 @@ test('crearRepoFixture crea un repo git con los commits pedidos y el merge no cu
 
   expect(existsSync(join(fixture.ruta, '.git'))).toBe(true)
   expect(commitsSinMerges(fixture.ruta)).toBe(3)
+})
+
+test('crearRepoFixture fija la fecha de autor y de commit a la pedida en cada CommitFixture', () => {
+  const commits = [
+    { fecha: '2026-07-20T09:00:00+00:00', email: 'ana@example.com', ficheros: ['src/a.ts'] },
+    { fecha: '2026-07-21T15:30:00+02:00', email: 'bea@example.com', ficheros: ['src/b.ts'] },
+  ]
+  fixture = crearRepoFixture({ commits })
+
+  // git no exporta un runner propio: leemos las fechas con git directamente.
+  const salida = execFileSync('git', ['-C', fixture.ruta, 'log', '--pretty=format:%aI%x09%cI'], {
+    encoding: 'utf8',
+  })
+  const lineas = salida.trim().split('\n')
+  expect(lineas).toHaveLength(commits.length)
+
+  // %aI normaliza el offset (p.ej. '+00:00' vuelve como 'Z'): comparamos
+  // instantes, no strings. El orden de `git log` no importa: comparamos
+  // los conjuntos de instantes ordenados.
+  const instantesEsperados = commits.map((commit) => Date.parse(commit.fecha)).sort()
+  const instantesAutor = lineas.map((linea) => Date.parse(linea.split('\t')[0] ?? '')).sort()
+  const instantesCommitter = lineas.map((linea) => Date.parse(linea.split('\t')[1] ?? '')).sort()
+
+  expect(instantesAutor).toEqual(instantesEsperados)
+  expect(instantesCommitter).toEqual(instantesEsperados)
 })
 
 test('crearRepoFixture sin commits deja un repo git vacío', () => {

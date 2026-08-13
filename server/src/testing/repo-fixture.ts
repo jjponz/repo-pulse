@@ -44,23 +44,29 @@ export interface RepoFixture {
 
 export function crearRepoFixture(especificacion: EspecificacionFixture = {}): RepoFixture {
   const ruta = mkdtempSync(join(tmpdir(), 'repo-pulse-fixture-'))
-  git(ruta, ['init', '-q', '-b', 'main', '.'])
-  git(ruta, ['config', 'user.name', 'Fixture'])
-  git(ruta, ['config', 'user.email', 'fixture@example.com'])
-  git(ruta, ['config', 'commit.gpgsign', 'false'])
 
-  for (const commit of especificacion.commits ?? []) escribirCommit(ruta, commit)
+  try {
+    git(ruta, ['init', '-q', '-b', 'main', '.'])
+    git(ruta, ['config', 'user.name', 'Fixture'])
+    git(ruta, ['config', 'user.email', 'fixture@example.com'])
+    git(ruta, ['config', 'commit.gpgsign', 'false'])
 
-  const merge = especificacion.merge
-  if (merge !== undefined) {
-    git(ruta, ['checkout', '-q', '-b', 'rama-fixture'])
-    escribirCommit(ruta, merge)
-    git(ruta, ['checkout', '-q', 'main'])
-    git(ruta, ['merge', '--no-ff', '-q', 'rama-fixture', '-m', 'merge de fixture'], entornoDe(merge))
-  }
+    for (const commit of especificacion.commits ?? []) escribirCommit(ruta, commit)
 
-  if (especificacion.mailmap !== undefined) {
-    writeFileSync(join(ruta, '.mailmap'), especificacion.mailmap)
+    const merge = especificacion.merge
+    if (merge !== undefined) {
+      git(ruta, ['checkout', '-q', '-b', 'rama-fixture'])
+      escribirCommit(ruta, merge)
+      git(ruta, ['checkout', '-q', 'main'])
+      git(ruta, ['merge', '--no-ff', '-q', 'rama-fixture', '-m', 'merge de fixture'], entornoDe(merge))
+    }
+
+    if (especificacion.mailmap !== undefined) {
+      writeFileSync(join(ruta, '.mailmap'), especificacion.mailmap)
+    }
+  } catch (error) {
+    rmSync(ruta, { recursive: true, force: true })
+    throw error
   }
 
   return {
