@@ -1,2 +1,4 @@
 .worktrees/
 .agent/SLICE.md
+node_modules/
+dist/
