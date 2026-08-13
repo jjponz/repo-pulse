@@ -19,7 +19,7 @@ base: main
 # actualización de STATE.md no te vuelve a dejar atrás.
 last_commit: ""
 github_issue: null
-you_are_here: "Slice #1 cerrado (PR #8 en squash, 9824d3d) y cosechado. Slice #2 (análisis: pulso y gente) en vuelo en .worktrees/2 sobre feat/2: publicó su plan en el issue (2 comentarios, 74 KB, commiteado en la rama y validado con --check-plan) y el GATE PLAN SE CERRÓ con un 'ok' en el hilo el 2026-08-13 a las 15:45. El agente está implementando sus 8 tareas. Cap 1/1 ocupado; #3–#7 en status:backlog."
+you_are_here: "Slice #1 cerrado (PR #8 en squash, 9824d3d) y cosechado. Slice #2 (análisis: pulso y gente) en vuelo en .worktrees/2 sobre feat/2: publicó su plan en el issue (2 comentarios, 74 KB, commiteado en la rama y validado con --check-plan) y el GATE PLAN SE CERRÓ con un 'ok' en el hilo el 2026-08-13 a las 15:45. Ese 'ok' NO despertó al agente por sí solo (ver gotchas): hubo que empujarlo a mano en su sesión cmux, y desde entonces sí está implementando las 8 tareas. Cap 1/1 ocupado; #3–#7 en status:backlog."
 next_action: "Esperar el PR del #2 contra main (el kickoff le exige 'Closes #2' en el CUERPO) y su release a status:in-review; entonces revisarlo, cerrar el gate apply y mergear"
 # blocked: null = NO bloqueado. Si el trabajo no puede continuar (una decisión
 # lo paró, el plan resultó falso, falta algo de fuera), NO lo escribas en prosa
@@ -71,4 +71,13 @@ status:backlog. El cap está lleno (1/1): no despachar otro hasta cerrar el #2.
   borrar sin git con `gh api -X DELETE repos/<owner>/<repo>/git/refs/heads/<r>`.
 - `ACCOUNT_MAP` (scripts/kickoff.js del plugin) no tiene patrón para `jjponz/*`:
   el dispatcher cae a la cuenta personal por defecto, que aquí es la correcta.
+- CERRAR UN GATE NO REANUDA AL AGENTE. El agente para en el gate y se queda
+  IDLE en su sesión cmux; nada consulta el hilo del issue, así que responder
+  'ok' en GitHub no le llega. Hay que empujarlo a mano:
+      cmux list-workspaces                      # localiza el workspace del slice
+      cmux send --workspace workspace:<n> "<el OK y qué debe hacer>"
+      cmux send-key --workspace workspace:<n> Enter
+  Los DOS comandos: `send` solo escribe en el prompt, deja el texto sin enviar
+  (el `\n` que documenta su ayuda no lo envió aquí). Comprobar con
+  `cmux read-screen --workspace workspace:<n>` que arrancó de verdad.
 ## Critical Files
