@@ -1,5 +1,5 @@
 ---
-task: "Bootstrap Control Tower loop (ct-init)"
+task: "Epic Repo Pulse MVP: brainstorming → spec → loop"
 # role: quién eres en el loop. Hay DOS sesiones vivas por repo con papeles
 # opuestos, y hasta F20 el reparto solo estaba escrito dentro del kickoff que
 # recibía una de ellas — se perdía en cuanto esa sesión se re-hidrataba.
@@ -19,8 +19,8 @@ base: main
 # actualización de STATE.md no te vuelve a dejar atrás.
 last_commit: ""
 github_issue: null
-you_are_here: "Repo recién bootstrapeado con ct-init: el scaffolder creó .agent/STATE.md y AGENTS.md (con el contrato de slices v18) y añadió .worktrees/ y .agent/SLICE.md al .gitignore. Antes solo existían README.md y el .git; AGENTS.md se rellenó a mano tras explorar el repo (vacío: sin stack, sin tests, sin CI)."
-next_action: "(sin slice asignado)"
+you_are_here: "Execution spec del MVP CONGELADA (2026-08-13, 7 slices) y commiteada junto al design doc y la maqueta. Nada groomeado todavía: no hay milestone, ni issues, ni labels en GitHub."
+next_action: "Correr /ct-groom del spec docs/superpowers/specs/2026-08-13-repo-pulse-mvp-execution.md (empujar main a GitHub antes, para que el enlace al spec verifique) y promover a status:ready los slices que entren en vuelo"
 # blocked: null = NO bloqueado. Si el trabajo no puede continuar (una decisión
 # lo paró, el plan resultó falso, falta algo de fuera), NO lo escribas en prosa
 # dentro de next_action: ponlo aquí. El hook de SessionStart lo anuncia al
