@@ -1,28 +1,35 @@
 # AGENTS.md
 <!-- Guía durable del repo (≤150 líneas). Procedimientos → Skills. -->
 ## Project overview
-`repo-pulse` — repo recién creado (solo `README.md`). Todavía no hay código,
-stack ni propósito definidos más allá del nombre. Remoto:
-`github.com/jjponz/repo-pulse`.
+`repo-pulse` — dashboard local de salud de repos git (Pulso, Gente, Calor).
+Monorepo npm workspaces: `web/` (Vite + React + TS) y `server/` (Express + TS).
+Remoto: `github.com/jjponz/repo-pulse`.
 
 ## Setup commands
-Ninguno todavía: no hay toolchain (ni `package.json`, ni `pyproject.toml`,
-ni `Makefile`…). Actualiza esta sección cuando el primer slice traiga el stack.
+- Node ≥22 y npm ≥10.
+- `npm install` en la raíz instala los dos workspaces (`server/`, `web/`).
 
 ## Build, test & lint
-No existen aún comandos de build, test ni lint, y **no hay CI configurada**
-(sin `.github/workflows/`). El slice que introduzca el stack debe:
-1. dejar aquí los comandos reales (build/test/lint), y
-2. añadir el workflow de CI que los ejecute.
-Hasta entonces, "verificar" un slice = lo que declare su issue.
+Desde la raíz; cada comando cubre ambos workspaces:
+- `npm run build` — `server/`: `tsc` → `dist/`; `web/`: `tsc --noEmit` + `vite build`.
+- `npm test` — Vitest (`vitest run`) en cada workspace.
+- `npm run lint` — ESLint 9 (flat config en `eslint.config.js`) sobre todo el repo.
+La CI (`.github/workflows/ci.yml`) ejecuta build+test+lint en cada PR y en cada
+push a `main`.
 
 ## Code style & conventions
-Sin convenciones establecidas. Las fija el primer código que entre; escríbelas
-aquí cuando existan.
+- TypeScript estricto (`tsconfig.base.json`: `strict`, `noUncheckedIndexedAccess`,
+  `verbatimModuleSyntax`); ESM en todo el repo (`"type": "module"`).
+- ESLint flat config: `@eslint/js` recommended + `typescript-eslint` recommended.
+- Tests con Vitest junto al código: `*.test.ts` / `*.test.tsx`.
+- En `server/` los imports relativos llevan sufijo `.js` (ESM + NodeNext).
 
 ## Project layout
 ```
-README.md          # único contenido por ahora
+server/            # API Express + TS (build → server/dist/)
+web/               # UI Vite + React + TS
+docs/              # specs, planes y maqueta de referencia
+.github/workflows/ # CI: build+test+lint en cada PR
 .agent/STATE.md    # estado de la sesión coordinadora (no es producto)
 AGENTS.md          # esta guía
 ```
@@ -47,8 +54,10 @@ Nada específico todavía (no hay datos ni secretos en el repo).
   fichero: la mantiene `/ct-init`, no se edita a mano.
 
 ## Gotchas
-- Repo vacío: cualquier verificación de "los tests pasan" es vacua hasta que
-  exista una suite. No lo declares como comprobado.
+- `vitest run` falla (exit 1) si un workspace se queda sin ficheros de test: no
+  borres el último test de un workspace sin sustituirlo.
+- Los `*.test.ts` de `server/` están excluidos del build de `tsc`: un error de
+  tipos en un test no rompe `npm run build`. No te fíes solo del build.
 
 ## Skills (load on demand)
 (ninguna específica del repo todavía)
