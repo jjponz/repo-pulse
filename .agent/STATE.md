@@ -56,9 +56,12 @@ status:backlog. El cap está lleno (1/1): no despachar otro hasta cerrar el #2.
   están cerrados: siguen puestos aunque el gate ya se haya pasado. Lo mismo con
   el `status:in-review` de un issue ya cerrado: no es anomalía, y `/ct-next` lo
   dice en cada corrida.
-- Un hook local bloquea `git push` desde `main` (rama protegida) y matchea la
-  orden entera, así que también tumba un `git push origin --delete <rama>`. Los
-  commits de este fichero se quedan en local salvo que salgan por un PR.
+- Un hook local bloquea CUALQUIER `git push` mientras el checkout principal está
+  en `main` (rama protegida) — incluido un `git push origin --delete <rama>`,
+  que no toca main: lo que mira es la rama en la que estás, no la forma del
+  comando. Desde una rama de trabajo pasa (verificado con `chore/state`), así
+  que los commits de este fichero salen por PR; y una rama remota se puede
+  borrar sin git con `gh api -X DELETE repos/<owner>/<repo>/git/refs/heads/<r>`.
 - `ACCOUNT_MAP` (scripts/kickoff.js del plugin) no tiene patrón para `jjponz/*`:
   el dispatcher cae a la cuenta personal por defecto, que aquí es la correcta.
 ## Critical Files
