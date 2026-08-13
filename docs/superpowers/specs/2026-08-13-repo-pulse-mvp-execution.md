@@ -1,8 +1,8 @@
 # Repo Pulse MVP — Execution spec
 
 **Handoff origen:** `docs/superpowers/specs/2026-08-13-repo-pulse-mvp-design.md`
-**Fecha de congelación:** —
-**Estado:** DRAFT
+**Fecha de congelación:** 2026-08-13
+**Estado:** CONGELADA
 
 ## Hipótesis del experimento
 
