@@ -6,7 +6,7 @@ Monorepo npm workspaces: `web/` (Vite + React + TS) y `server/` (Express + TS).
 Remoto: `github.com/jjponz/repo-pulse`.
 
 ## Setup commands
-- Node ≥22 y npm ≥10.
+- Node ≥22 (`engines.node` del `package.json` raíz es la fuente de verdad).
 - `npm install` en la raíz instala los dos workspaces (`server/`, `web/`).
 
 ## Build, test & lint
@@ -22,7 +22,9 @@ push a `main`.
   `verbatimModuleSyntax`); ESM en todo el repo (`"type": "module"`).
 - ESLint flat config: `@eslint/js` recommended + `typescript-eslint` recommended.
 - Tests con Vitest junto al código: `*.test.ts` / `*.test.tsx`.
-- En `server/` los imports relativos llevan sufijo `.js` (ESM + NodeNext).
+- En `server/` los imports relativos llevan sufijo `.js` (ESM + NodeNext); en
+  `web/` no lo llevan (resolución de bundler). No unifiques las dos: es a
+  propósito.
 
 ## Project layout
 ```
@@ -47,7 +49,13 @@ abajo.
 - No commitear `.agent/SLICE.md` ni `.worktrees/` (ya ignorados).
 
 ## Security & data handling
-Nada específico todavía (no hay datos ni secretos en el repo).
+- Los nombres y emails de autores NUNCA salen del servidor: ni en payloads de
+  API, ni en el DOM. Solo conteos, porcentajes y concentración. El email se usa
+  dentro de `server/src/analysis/` como clave de agregación y muere ahí.
+- El servidor lee clones locales (raíz configurable, default `~/git`) y escribe
+  settings en un JSON local. Nunca muta un clon: nada de `fetch`/`pull`.
+- El servidor escucha solo en `127.0.0.1`: la foto de los repos locales no sale
+  a la red.
 
 ## Do NOT touch
 - La sección "Formato de la tabla de slices (contrato con /ct-groom)" de este
@@ -58,6 +66,22 @@ Nada específico todavía (no hay datos ni secretos en el repo).
   borres el último test de un workspace sin sustituirlo.
 - Los `*.test.ts` de `server/` están excluidos del build de `tsc`: un error de
   tipos en un test no rompe `npm run build`. No te fíes solo del build.
+
+## Decisiones abiertas entre workspaces (con dueño)
+Las creó el esqueleto (#1) y no las cubre el criterio de aceptación de ningún
+slice; el dueño las resuelve cuando le toque, en vez de descubrirlas:
+- **Typecheck de los tests de `server/`** — hoy no los mira nadie (ver Gotchas).
+  Dueño: el slice que traiga `server/src/analysis/`. Salida esperada: un
+  `tsconfig` que compile `src` entero y otro que excluya los tests solo del
+  emit.
+- **Cómo llega `web/` al server en dev** — no hay `server.proxy` en
+  `web/vite.config.ts` ni CORS en el server, así que hoy un `fetch('/api/…')`
+  desde el dev server no llega. Dueño: el primer slice de UI que consuma la
+  API. Salida esperada: proxy de `/api` en Vite (no CORS en el server).
+- **Frontera `web/` → `server/`** — nada lo impide técnicamente. Regla: `web/`
+  NO importa de `server/`; si necesita los tipos del payload, los declara en
+  `web/`. Va con lo de arriba: un tipo del server puede arrastrar campos de
+  autor hasta el DOM. Dueño: el primer slice de UI.
 
 ## Skills (load on demand)
 (ninguna específica del repo todavía)
