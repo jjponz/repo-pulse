@@ -578,9 +578,15 @@ protegida del contrato de slices.
 `## Formato de la tabla de slices` hasta el final del fichero, y los dos marcadores
 `ct-init:slices-contract` que la preceden, no se modifica ni un byte.
 
+Las tres citas de AGENTS.md de esta tarea son HISTÓRICAS: son el estado del
+fichero ANTES de este slice (commit base `b4ebcd9`), y esta tarea es justo la que
+las reescribe, así que dejan de existir verbatim en cuanto se ejecuta. Se
+etiquetan como tal a propósito, y cualquiera puede comprobarlas con
+`git show b4ebcd9:AGENTS.md`.
+
 Reemplazo A — de `## Project overview` a `## Project layout` (ambas incluidas).
 
-Current state (AGENTS.md, lines 3-23):
+Estado de AGENTS.md antes de este slice (`b4ebcd9`, líneas 3-23):
 
 ```
 ## Project overview
@@ -639,7 +645,7 @@ push a `main`.
 Reemplazo B — las tres líneas de dentro del bloque de código de "Project layout" (las líneas
 entre sus dos vallas de backticks, que se dejan intactas).
 
-Current state (AGENTS.md, lines 25-27):
+Estado de AGENTS.md antes de este slice (`b4ebcd9`, líneas 25-27):
 
 ```
 README.md          # único contenido por ahora
@@ -660,7 +666,7 @@ AGENTS.md          # esta guía
 
 Reemplazo C — la sección "Gotchas" completa.
 
-Current state (AGENTS.md, lines 49-51):
+Estado de AGENTS.md antes de este slice (`b4ebcd9`, líneas 49-51):
 
 ```
 ## Gotchas
