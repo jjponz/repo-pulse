@@ -19,8 +19,8 @@ base: main
 # actualización de STATE.md no te vuelve a dejar atrás.
 last_commit: ""
 github_issue: null
-you_are_here: "Slice #1 cerrado (PR #8 en squash, 9824d3d) y su worktree/rama cosechados. Slice #2 (análisis: pulso y gente) DESPACHADO con /ct-next (2026-08-13): claim in-progress, worktree .worktrees/2 + rama feat/2, cmux workspace:3, arranque verificado por centinela (el agente corre de verdad, no solo la ventana). Cap 1/1 ocupado. #3–#7 en status:backlog."
-next_action: "Gate plan del #2: el agente publicará su plan como comentario del issue #2 y PARARÁ hasta que un humano responda OK ahí; revisarlo y contestar. Después, review del PR, gate apply y merge"
+you_are_here: "Slice #1 cerrado (PR #8 en squash, 9824d3d) y cosechado. Slice #2 (análisis: pulso y gente) en vuelo en .worktrees/2 sobre feat/2: publicó su plan en el issue (2 comentarios, 74 KB, commiteado en la rama y validado con --check-plan) y el GATE PLAN SE CERRÓ con un 'ok' en el hilo el 2026-08-13 a las 15:45. El agente está implementando sus 8 tareas. Cap 1/1 ocupado; #3–#7 en status:backlog."
+next_action: "Esperar el PR del #2 contra main (el kickoff le exige 'Closes #2' en el CUERPO) y su release a status:in-review; entonces revisarlo, cerrar el gate apply y mergear"
 # blocked: null = NO bloqueado. Si el trabajo no puede continuar (una decisión
 # lo paró, el plan resultó falso, falta algo de fuera), NO lo escribas en prosa
 # dentro de next_action: ponlo aquí. El hook de SessionStart lo anuncia al
@@ -30,7 +30,7 @@ next_action: "Gate plan del #2: el agente publicará su plan como comentario del
 blocked: null
 # verify: la comprobación PENDIENTE que valida este trabajo AL TERMINAR — nunca
 # un hecho ya comprobado, aunque se redacte en presente.
-verify: "el plan del #2 aparece como comentario del issue y, tras el OK, su PR contra main llega con Closes #2 en el cuerpo y CI verde"
+verify: "el PR del #2 llega contra main con 'Closes #2' en el cuerpo, CI verde, y el diff no toca app.ts/index.ts/app.test.ts ni web/ (la frontera que el propio plan declara)"
 tasks: []
 ---
 ## Current State
@@ -40,10 +40,17 @@ Epic groomeado (milestone + issues #1–#7 + labels + Project v2). Slice #1
 .worktrees/2 sobre feat/2, parado en el gate plan por diseño. #3–#7 en
 status:backlog. El cap está lleno (1/1): no despachar otro hasta cerrar el #2.
 ## Immediate Next Steps
-1. Esperar el comentario de plan del #2 en su issue, revisarlo y responder OK.
-2. Revisar su PR, cerrar el gate apply y mergear (Closes #2 cierra el issue).
-3. Cosechar .worktrees/2 y feat/2, y promover el siguiente slice.
+1. Esperar el PR del #2 y su paso a status:in-review.
+2. Revisarlo contra el verify de arriba, cerrar el gate apply y mergear.
+3. Cosechar .worktrees/2 y feat/2, y promover el siguiente slice (#3 o #4).
 ## Decisions Made
+- Gate plan del #2 cerrado con OK (2026-08-13 15:45). Con él se sancionaron tres
+  cosas que el issue NO pedía y que el plan añade con motivo: partir el tsconfig
+  de `server/` en typecheck (todo `src`) + emit (sin tests), que AGENTS.md asigna
+  a este slice; exportar `cubosVentanaAnterior`, `leerHeadSha` y `ruido.ts` para
+  los slices de API y Calor; y fijar ventanas de 30/91/364 días en UTC, que el
+  issue deja abiertas. Si un slice posterior las contradice, la fuente es esta
+  decisión, no el issue.
 - Gate apply del #1 cerrado a mano (2026-08-13): el slice no toca ningún entorno
   real —sin deploy ni apply ni scripts contra datos—, y la evidencia fue el CI
   en verde del PR más la cadena npm ci/build/test/lint corrida en local sobre un
