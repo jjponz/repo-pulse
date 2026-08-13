@@ -19,8 +19,8 @@ base: main
 # actualización de STATE.md no te vuelve a dejar atrás.
 last_commit: ""
 github_issue: null
-you_are_here: "Slice #1 (esqueleto) CERRADO (2026-08-13): gate apply cerrado a mano en el issue #1 con evidencia (CI verde + cadena npm ci/build/test/lint verificada en local), PR #8 mergeado en squash (9824d3d) e issue #1 cerrado automáticamente. Su label status:in-review sigue puesto sobre el issue cerrado: NO es anomalía, un issue cerrado se cae de la cola igualmente. Nada en vuelo: #2–#7 en status:backlog."
-next_action: "Elegir el siguiente slice (orden §9 del spec: #2 análisis pulso y gente), promoverlo a status:ready y despacharlo con /ct-next (con CT_ACCOUNT_PERSONAL_DIR/CT_AGENT_BIN_PERSONAL, ver gotchas); después, gate plan del slice despachado"
+you_are_here: "Slice #1 cerrado (PR #8 en squash, 9824d3d) y su worktree/rama cosechados. Slice #2 (análisis: pulso y gente) DESPACHADO con /ct-next (2026-08-13): claim in-progress, worktree .worktrees/2 + rama feat/2, cmux workspace:3, arranque verificado por centinela (el agente corre de verdad, no solo la ventana). Cap 1/1 ocupado. #3–#7 en status:backlog."
+next_action: "Gate plan del #2: el agente publicará su plan como comentario del issue #2 y PARARÁ hasta que un humano responda OK ahí; revisarlo y contestar. Después, review del PR, gate apply y merge"
 # blocked: null = NO bloqueado. Si el trabajo no puede continuar (una decisión
 # lo paró, el plan resultó falso, falta algo de fuera), NO lo escribas en prosa
 # dentro de next_action: ponlo aquí. El hook de SessionStart lo anuncia al
@@ -30,18 +30,19 @@ next_action: "Elegir el siguiente slice (orden §9 del spec: #2 análisis pulso 
 blocked: null
 # verify: la comprobación PENDIENTE que valida este trabajo AL TERMINAR — nunca
 # un hecho ya comprobado, aunque se redacte en presente.
-verify: "el siguiente slice sale de /ct-next con claim in-progress, worktree y agente vivo, y su plan llega como comentario del issue"
+verify: "el plan del #2 aparece como comentario del issue y, tras el OK, su PR contra main llega con Closes #2 en el cuerpo y CI verde"
 tasks: []
 ---
 ## Current State
 Epic groomeado (milestone + issues #1–#7 + labels + Project v2). Slice #1
-(esqueleto: monorepo npm workspaces con CI) entregado y mergeado: PR #8 en
-squash sobre main (9824d3d), issue #1 cerrado. Quedan #2–#7 en status:backlog y
-nada en vuelo, así que el loop está parado hasta que promueva el siguiente.
+(esqueleto: monorepo npm workspaces con CI) mergeado y cosechado. Slice #2
+(análisis: pulso y gente) en vuelo desde 2026-08-13: agente vivo en
+.worktrees/2 sobre feat/2, parado en el gate plan por diseño. #3–#7 en
+status:backlog. El cap está lleno (1/1): no despachar otro hasta cerrar el #2.
 ## Immediate Next Steps
-1. Promover el siguiente slice a status:ready (orden §9: #2) y correr /ct-next.
-2. Retirar el worktree .worktrees/1 y la rama feat/1, ya mergeados.
-3. Gate plan del slice despachado: revisar su comentario de plan y responder OK.
+1. Esperar el comentario de plan del #2 en su issue, revisarlo y responder OK.
+2. Revisar su PR, cerrar el gate apply y mergear (Closes #2 cierra el issue).
+3. Cosechar .worktrees/2 y feat/2, y promover el siguiente slice.
 ## Decisions Made
 - Gate apply del #1 cerrado a mano (2026-08-13): el slice no toca ningún entorno
   real —sin deploy ni apply ni scripts contra datos—, y la evidencia fue el CI
@@ -52,5 +53,12 @@ nada en vuelo, así que el loop está parado hasta que promueva el siguiente.
   `CT_AGENT_BIN_PERSONAL=claude`: no existen ni `~/.claude-personal` ni el
   binario `claude-personal`.
 - Los labels `gate:plan`/`gate:apply` del issue marcan qué gates aplican, no si
-  están cerrados: siguen puestos aunque el gate ya se haya pasado.
+  están cerrados: siguen puestos aunque el gate ya se haya pasado. Lo mismo con
+  el `status:in-review` de un issue ya cerrado: no es anomalía, y `/ct-next` lo
+  dice en cada corrida.
+- Un hook local bloquea `git push` desde `main` (rama protegida) y matchea la
+  orden entera, así que también tumba un `git push origin --delete <rama>`. Los
+  commits de este fichero se quedan en local salvo que salgan por un PR.
+- `ACCOUNT_MAP` (scripts/kickoff.js del plugin) no tiene patrón para `jjponz/*`:
+  el dispatcher cae a la cuenta personal por defecto, que aquí es la correcta.
 ## Critical Files
