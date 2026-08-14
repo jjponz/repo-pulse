@@ -19,8 +19,8 @@ base: main
 # actualización de STATE.md no te vuelve a dejar atrás.
 last_commit: ""
 github_issue: null
-you_are_here: "Slices #1 y #2 cerrados y cosechados (PR #8 → 9824d3d, PR #10 → 46a52c0). Slice #3 (análisis: calor) DESPACHADO el 2026-08-14 en .worktrees/3 sobre feat/3, cmux workspace:4, arranque verificado por centinela; ya publicó su plan y está PARADO en el gate plan. Ojo: su claim quedó huérfano en el primer intento (una corrida interrumpida reclamó el issue sin crear el worktree) y hubo que arreglarlo con --requeue antes de redespachar. Además, con el plan ya escrito llegó la regla nueva de código en inglés, así que ese plan hay que revisarlo contra ella. Cap 1/1 ocupado; #4–#7 en status:backlog."
-next_action: "Revisar el plan del #3 en su issue —comprobando que cumple la regla de inglés y que planifica contra la API YA renombrada— y, al dar el OK, empujar al agente por cmux (workspace:4); responder en GitHub no lo despierta"
+you_are_here: "Slices #1, #2 y #3 cerrados y cosechados (PR #8 → 9824d3d, PR #10 → 46a52c0, PR #13 → 6d933db), más el refactor a inglés (PR #12 → 66c34ac). Del #3 no queda residuo: worktree, rama local, rama remota y sesión cmux borrados. Cap 0/1 LIBRE, ningún agente vivo. El #4 (API HTTP) es el siguiente: sus dos deps (#2 y #3) están mergeadas, pero sigue en status:backlog — promoverlo es el gate humano. #4–#7 en backlog."
+next_action: "Promover el #4 a status:ready y despacharlo con /ct-next (env de los gotchas); luego verificar el arranque por cmux y atender su gate plan"
 # blocked: null = NO bloqueado. Si el trabajo no puede continuar (una decisión
 # lo paró, el plan resultó falso, falta algo de fuera), NO lo escribas en prosa
 # dentro de next_action: ponlo aquí. El hook de SessionStart lo anuncia al
@@ -30,23 +30,30 @@ next_action: "Revisar el plan del #3 en su issue —comprobando que cumple la re
 blocked: null
 # verify: la comprobación PENDIENTE que valida este trabajo AL TERMINAR — nunca
 # un hecho ya comprobado, aunque se redacte en presente.
-verify: "el plan del #3 aparece como comentario de su issue y, tras el OK, su PR contra main llega con 'Closes #3' en el cuerpo y CI verde"
+verify: "el plan del #4 aparece como comentario de su issue y, tras el OK, su PR contra main llega con 'Closes #4' en el cuerpo, CI verde y sin tocar web/"
 tasks: []
 ---
 ## Current State
-Epic groomeado (milestone + issues #1–#7 + labels + Project v2). Dos slices
-entregados: #1 (esqueleto: monorepo npm workspaces con CI) y #2 (análisis:
-pulso y gente, `server/src/analysis/` — walkHistory, readHeadSha, noise.ts y
-los tipos que consumirán Calor y la API; renombrado a inglés después, ver
-Decisions). Ambos cosechados. #3 (análisis: calor) EN VUELO desde el 2026-08-14
-en .worktrees/3 sobre feat/3 (cmux workspace:4): publicó su plan y está parado
-en el gate plan. Cap 1/1 ocupado; #4–#7 en status:backlog.
+Epic groomeado (milestone + issues #1–#7 + labels + Project v2). TRES slices
+entregados y cosechados: #1 (esqueleto), #2 (análisis: pulso y gente) y #3
+(análisis: calor). `server/src/analysis/` es hoy un módulo completo y en
+inglés: `walkHistory` + `heatTree` + `readHeadSha` + `readDirectories` como
+entradas del barrel. Ningún agente en vuelo, cap 0/1 LIBRE. El #4 (API HTTP)
+tiene sus dos dependencias (#2 y #3) mergeadas: es el siguiente. #4–#7 en
+status:backlog.
 ## Immediate Next Steps
-1. Despachar el #3 (análisis: calor) con /ct-next.
+1. Promover el #4 a status:ready y despacharlo con /ct-next.
 2. Verificar por cmux que el agente arrancó de verdad, no solo la ventana.
 3. Atender su gate plan: revisar el plan en el issue, responder OK y EMPUJARLO
    a mano por cmux (responder en GitHub no lo despierta).
 ## Decisions Made
+- Slice #3 cerrado el 2026-08-14 (PR #13 en squash, 6d933db) tras RECHAZARLO una
+  vez en revisión y devolverlo con `--reopen`. El bug: `unquotePath` (que el
+  agente añadió por su cuenta, el issue no lo pedía) mezclaba code units UTF-16
+  con bytes, así que un path con no-ASCII Y un carácter C-quoteado a la vez
+  salía corrupto y dejaba de casar con `readDirectories`. Sus tests cubrían los
+  dos casos POR SEPARADO y nunca el cruce. Se arregló con `codePointAt` + bytes
+  UTF-8 y un test del cruce (`á` y un emoji). Sin gate apply, como el #2.
 - TODO EL CÓDIGO SE ESCRIBE EN INGLÉS (decisión del 2026-08-14). Identificadores,
   ficheros, comentarios, nombres de test y mensajes de error; regla boy scout
   para lo que quede en español. Lo que NO es código sigue en español: texto
@@ -128,13 +135,18 @@ en el gate plan. Cap 1/1 ocupado; #4–#7 en status:backlog.
   (el `\n` que documenta su ayuda no lo envió aquí). Comprobar con
   `cmux read-screen --workspace workspace:<n>` que arrancó de verdad.
   (`cmux list-workspaces` sigue funcionando, pero ya es alias de
-  `cmux workspace list`; el label del workspace se queda pegado al del slice
-  anterior, así que no fiarse de él para saber qué slice corre dentro.)
+  `cmux workspace list`; se cierra con `cmux workspace close workspace:<n>`.)
+- EL LABEL DEL WORKSPACE DE CMUX MIENTE, Y CASI CUESTA MATAR ESTA SESIÓN.
+  `workspace:2` se llama «repo-pulse · #1 esqueleto» pero es la sesión
+  COORDINADORA (esta), no la de ningún slice: el nombre se queda pegado al del
+  slice con el que se creó el workspace. Un `cmux workspace close workspace:2`
+  habría matado la sesión desde la que se coordina el loop. Antes de cerrar un
+  workspace, comprobar de quién es POR CONTENIDO, no por el nombre:
+      cmux read-screen --workspace workspace:<n>   # ¿es tu propia conversación?
+      pgrep -f claude + lsof -p <pid> -d cwd       # el del slice vive en .worktrees/<n>
+  La sesión de un slice arranca además con `--dangerously-skip-permissions`
+  («bypass permissions on» en su pie), la coordinadora no.
 ## Residuo pendiente
-- `origin/feat/2` sigue viva en GitHub: el borrado quedó fuera del alcance de
-  esta sesión. Se limpia con
-  `gh api -X DELETE repos/jjponz/repo-pulse/git/refs/heads/feat/2`, o con
-  `git push origin --delete feat/2` desde una rama que no sea `main`.
 - Rama local `respaldo-feat-2-pre-rebase`: red de seguridad del rebase del #2.
   Su contenido está contenido en `main` salvo cosas que se corrigieron DESPUÉS
   (`git diff origin/main respaldo-feat-2-pre-rebase` solo resta). Es borrable,
