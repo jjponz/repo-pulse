@@ -11,7 +11,9 @@ Remoto: `github.com/jjponz/repo-pulse`.
 
 ## Build, test & lint
 Desde la raíz; cada comando cubre ambos workspaces:
-- `npm run build` — `server/`: `tsc` → `dist/`; `web/`: `tsc --noEmit` + `vite build`.
+- `npm run build` — `server/`: typecheck de todo `src` con `tsconfig.json` (tests
+  incluidos) y emit a `dist/` con `tsconfig.build.json`; `web/`: `tsc --noEmit` +
+  `vite build`.
 - `npm test` — Vitest (`vitest run`) en cada workspace.
 - `npm run lint` — ESLint 9 (flat config en `eslint.config.js`) sobre todo el repo.
 La CI (`.github/workflows/ci.yml`) ejecuta build+test+lint en cada PR y en cada
@@ -25,10 +27,14 @@ push a `main`.
 - En `server/` los imports relativos llevan sufijo `.js` (ESM + NodeNext); en
   `web/` no lo llevan (resolución de bundler). No unifiques las dos: es a
   propósito.
+- Nombres del dominio en español (`ventana`, `cubos`, `autores`, `tendencia`,
+  `concentracion`), como la maqueta; `walkHistory` conserva el nombre del spec.
 
 ## Project layout
 ```
 server/            # API Express + TS (build → server/dist/)
+  src/analysis/    # análisis del historial: ÚNICO código que ejecuta git
+  src/testing/     # helpers de test (repos git fixture); fuera del emit
 web/               # UI Vite + React + TS
 docs/              # specs, planes y maqueta de referencia
 .github/workflows/ # CI: build+test+lint en cada PR
@@ -64,16 +70,16 @@ abajo.
 ## Gotchas
 - `vitest run` falla (exit 1) si un workspace se queda sin ficheros de test: no
   borres el último test de un workspace sin sustituirlo.
-- Los `*.test.ts` de `server/` están excluidos del build de `tsc`: un error de
-  tipos en un test no rompe `npm run build`. No te fíes solo del build.
+- `npm run build -w server` hace DOS cosas: typecheck de todo `src` (tests
+  incluidos) y emit sin tests. Un error de tipos en un test SÍ rompe el build.
+- Los tests del análisis crean repos git de verdad en `tmp` con fechas fijadas:
+  necesitan `git` en el PATH y jamás tocan clones reales de la máquina.
+- En `git log`, `%aE` aplica `.mailmap` y `%ae` no. El análisis usa `%aE` y
+  pasa el email a minúsculas: no lo cambies a la variante en minúscula.
 
 ## Decisiones abiertas entre workspaces (con dueño)
 Las creó el esqueleto (#1) y no las cubre el criterio de aceptación de ningún
 slice; el dueño las resuelve cuando le toque, en vez de descubrirlas:
-- **Typecheck de los tests de `server/`** — hoy no los mira nadie (ver Gotchas).
-  Dueño: el slice que traiga `server/src/analysis/`. Salida esperada: un
-  `tsconfig` que compile `src` entero y otro que excluya los tests solo del
-  emit.
 - **Cómo llega `web/` al server en dev** — no hay `server.proxy` en
   `web/vite.config.ts` ni CORS en el server, así que hoy un `fetch('/api/…')`
   desde el dev server no llega. Dueño: el primer slice de UI que consuma la
