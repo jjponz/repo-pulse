@@ -2,7 +2,7 @@ import { execFileSync } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { afterEach, expect, test } from 'vitest'
-import { createRepoFixture, nonMergeCommits } from './repo-fixture.js'
+import { appendCommit, createRepoFixture, daysAgo, headShaOf, nonMergeCommits } from './repo-fixture.js'
 import type { RepoFixture } from './repo-fixture.js'
 
 let fixture: RepoFixture | null = null
@@ -80,6 +80,32 @@ test('a rename names both paths', () => {
   const paths = output.split('\n').filter((line) => line !== '')
 
   expect(new Set(paths)).toEqual(new Set(['old.txt', 'new.txt']))
+})
+
+test('daysAgo is that many days before the moment of the call, with an explicit offset', () => {
+  const before = Date.now()
+  const date = daysAgo(3)
+  const after = Date.now()
+
+  expect(date).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.000\+00:00$/)
+  const parsed = Date.parse(date)
+  const threeDays = 3 * 86_400_000
+  // The date is truncated to whole seconds (git stores no more), so the lower
+  // bound gets a second of slack.
+  expect(parsed).toBeGreaterThanOrEqual(before - threeDays - 1000)
+  expect(parsed).toBeLessThanOrEqual(after - threeDays)
+})
+
+test('appendCommit adds a commit on top of an existing fixture and moves HEAD', () => {
+  fixture = createRepoFixture({
+    commits: [{ date: daysAgo(2), email: 'ana@example.com', files: ['src/a.ts'] }],
+  })
+  const before = headShaOf(fixture.path)
+
+  appendCommit(fixture.path, { date: daysAgo(1), email: 'bea@example.com', files: ['src/b.ts'] })
+
+  expect(nonMergeCommits(fixture.path)).toBe(2)
+  expect(headShaOf(fixture.path)).not.toBe(before)
 })
 
 test('cleanup removes the fixture directory', () => {

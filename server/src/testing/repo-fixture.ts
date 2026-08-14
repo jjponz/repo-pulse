@@ -79,6 +79,30 @@ export function createRepoFixture(spec: FixtureSpec = {}): RepoFixture {
   }
 }
 
+/**
+ * One more commit on top of an existing fixture, so a test can make a clone
+ * advance after it has already been read (cache invalidation). Same isolated
+ * env and same pinned dates as `createRepoFixture`.
+ */
+export function appendCommit(path: string, commit: CommitFixture): void {
+  writeCommit(path, commit)
+}
+
+/**
+ * `n` days before the moment of the call, in the ISO 8601 shape with an
+ * explicit offset that `CommitFixture.date` expects. Fixture dates that feed a
+ * TIME WINDOW have to be relative to the run: an absolute date drifts out of
+ * the window as real time passes and the test rots.
+ */
+export function daysAgo(n: number): string {
+  const date = new Date(Date.now() - n * 86_400_000)
+  // git stores whole seconds: dropping the milliseconds here is what lets a
+  // test compare the date it asked for against the one git reports back.
+  date.setUTCMilliseconds(0)
+  // `toISOString` spells UTC as 'Z'; git takes both, the fixtures use '+00:00'.
+  return date.toISOString().replace('Z', '+00:00')
+}
+
 /** Non-merge commits reachable from HEAD according to git: the number the tests compare against. */
 export function nonMergeCommits(path: string): number {
   return Number(git(path, ['rev-list', '--no-merges', '--count', 'HEAD']).trim())
