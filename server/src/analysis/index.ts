@@ -12,8 +12,10 @@ export interface WalkHistoryOptions {
  * requested window: commit buckets, authors per bucket, trend against the
  * previous window, KPIs and authorship concentration.
  *
- * It is the module's only entry point, and the module is the only code in the
- * repo that runs git. No author name or email gets out of here.
+ * `walkHistory` is one of this barrel's entry points, alongside `heatTree`,
+ * `readHeadSha` and `readDirectories`; `server/src/analysis` as a whole is
+ * the only code in the repo that runs git. No author name or email gets out
+ * of here.
  */
 export async function walkHistory(
   repo: string,

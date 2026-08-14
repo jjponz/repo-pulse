@@ -84,6 +84,11 @@ export function nonMergeCommits(path: string): number {
   return Number(git(path, ['rev-list', '--no-merges', '--count', 'HEAD']).trim())
 }
 
+/** HEAD sha of the fixture repo, read through the same isolated env as the rest of this file. */
+export function headShaOf(path: string): string {
+  return git(path, ['rev-parse', 'HEAD']).trim()
+}
+
 function writeCommit(path: string, commit: CommitFixture): void {
   if (commit.rename !== undefined) {
     const { from, to } = commit.rename

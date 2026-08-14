@@ -69,6 +69,34 @@ test('readHistory does not C-quote non-ASCII paths', async () => {
   }
 })
 
+test('readHistory unquotes paths that git C-quotes', async () => {
+  // '"' and '\' trigger git's C-quoting UNCONDITIONALLY, unlike non-ASCII
+  // bytes (which 'core.quotePath=false' alone spares): 'git log --name-only'
+  // returns the literal '"src/quo\"te.ts"' and '"src/back\\slash.ts"' instead
+  // of the raw paths below, while 'ls-tree -z' (used by `readDirectories`)
+  // returns them raw. Written via the fixture's normal `files` mechanism:
+  // both characters are ordinary bytes on the filesystem, so this needs no
+  // special-cased git commands.
+  const quoted = createRepoFixture({
+    commits: [
+      {
+        date: '2026-07-20T09:00:00+00:00',
+        email: 'ana@example.com',
+        files: ['src/quo"te.ts', 'src/back\\slash.ts'],
+      },
+    ],
+  })
+
+  try {
+    const { commits } = await readHistory(quoted.path)
+
+    expect(commits[0]?.files).toHaveLength(2)
+    expect(commits[0]?.files).toEqual(expect.arrayContaining(['src/quo"te.ts', 'src/back\\slash.ts']))
+  } finally {
+    quoted.cleanup()
+  }
+})
+
 test('readHistory applies .mailmap', async () => {
   const withMailmap = createRepoFixture({
     commits: COMMITS,

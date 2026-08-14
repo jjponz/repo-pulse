@@ -24,7 +24,7 @@ export interface Heat {
   path: string
   /** commits of the window touching >=1 non-noise file under `path`. */
   commits: number
-  /** commits of the window touching >=1 non-noise file under the main folder: the percent denominator for every child. Equals `commits` at the top level, differs below it. */
+  /** commits of the window touching >=1 non-noise file under the main folder: the denominator behind every child's `percent` in `children`. */
   mainFolderCommits: number
   /** HEAD sha of the clone, null when the repo has no commits. */
   headSha: string | null
