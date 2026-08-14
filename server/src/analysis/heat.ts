@@ -24,6 +24,10 @@ export interface Heat {
   path: string
   /** commits of the window touching >=1 non-noise file under `path`. */
   commits: number
+  /** commits of the window touching >=1 non-noise file under the main folder: the percent denominator for every child. Equals `commits` at the top level, differs below it. */
+  mainFolderCommits: number
+  /** HEAD sha of the clone, null when the repo has no commits. */
+  headSha: string | null
   children: HeatEntry[]
 }
 
@@ -43,7 +47,7 @@ export async function heatTree(
   opts: { mainFolder?: string; path?: string; now?: Date } = {},
 ): Promise<Heat> {
   const now = (opts.now ?? new Date()).getTime()
-  const [directories, { commits }] = await Promise.all([readDirectories(repo), readHistory(repo)])
+  const [directories, { headSha, commits }] = await Promise.all([readDirectories(repo), readHistory(repo)])
 
   const mainFolder = resolveMainFolder(directories, normalizePath(opts.mainFolder))
   const path = normalizePath(opts.path) ?? mainFolder.mainFolder
@@ -61,7 +65,7 @@ export async function heatTree(
     ? childrenOf(inWindow, path, mainFolderCommits)
     : []
 
-  return { ...mainFolder, path, commits: pathCommits, children }
+  return { ...mainFolder, path, commits: pathCommits, mainFolderCommits, headSha, children }
 }
 
 /** Strips leading/trailing '/' and collapses repeated '/', so 'src/checkout/' and 'src/checkout' resolve to the same level. `undefined` passes through untouched. */
