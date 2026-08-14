@@ -13,24 +13,24 @@ HEAD; un rename es path nuevo.
 
 ### Out of scope
 
-🚫 Ni Express ni UI (`app.ts`, `index.ts`, `web/`). Ni persistencia ni caché: van con la API.
+🚫 Ni Express ni UI (`app.ts`, `server/src/index.ts`, `web/`). Ni caché: va con la API.
 Sin BD, sin migración.
 
 ## 2. Closed decisions (do NOT reopen)
 
 | Decision | Value |
 |---|---|
-| Idioma | código en inglés (AGENTS.md); producto e issue, en español |
-| Ventana | se acota con `buildGrid` + `bucketIndex`, no a mano |
-| Dónde vive | todo en `heat.ts` |
-| Métrica | commits distintos de la ventana que tocan ≥1 fichero bajo el hijo; el ruido antes |
-| % | sobre los de la principal; `round(c / total * 100)`, 0 si total 0 |
+| Idioma | código en inglés (AGENTS.md) |
+| Ventana | con `buildGrid` + `bucketIndex`, no a mano |
+| Vive en | `heat.ts` |
+| Métrica | commits distintos de la ventana que tocan ≥1 fichero bajo el hijo; ruido antes |
+| % | sobre `mainFolderCommits`, no sobre los del nivel; `round(c / total * 100)`, 0 si total 0 |
 | Principal | `''` = raíz; auto = `src` si está en HEAD; una guardada muerta cae a la auto (`fallback: true`) |
 | Nivel | `path` desde la raíz del clon; fuera de la principal → `children: []`; orden: commits, nombre |
 
 ## 3. Reference patterns
 
-`aggregate.ts` e `index.test.ts` (fixture, `NOW` fijo).
+`aggregate.ts` e `index.test.ts`.
 
 ## 4. Inventory
 
@@ -39,7 +39,7 @@ Sin BD, sin migración.
 | `repo-fixture.ts` | modify | tests | Contract |
 | `git.ts` | modify | `heat.ts` | Contract |
 | `heat.ts` | create | `index.ts` | Contract |
-| `index.ts` | modify | API #4 | prose |
+| `analysis/index.ts` | modify | API #4 | prose |
 
 ## 5. Interfaces
 
@@ -60,7 +60,7 @@ dirs, not files'`; en `repo-fixture.test.ts`, `'a rename names both paths'`.
 
 **Objective:** el nivel de calor de un repo en una ventana.
 
-**Files:** `repo-fixture.ts`, `git.ts`, `index.ts` (modify); `heat.ts` (create)
+**Files:** `repo-fixture.ts`, `git.ts`, `analysis/index.ts` (modify); `heat.ts` (create)
 
 Contract (server/src/testing/repo-fixture.ts):
 
@@ -78,7 +78,7 @@ Contract (server/src/analysis/heat.ts):
 
 ```ts
 export interface HeatEntry { name: string; kind: 'dir' | 'file'; commits: number; percent: number }
-export interface Heat { mainFolder: string; fallback: boolean; path: string; commits: number; children: HeatEntry[] }
+export interface Heat { mainFolder: string; fallback: boolean; path: string; commits: number; mainFolderCommits: number; headSha: string | null; children: HeatEntry[] }
 export function heatTree(repo: string, window: TimeWindow, opts?: { mainFolder?: string; path?: string; now?: Date }): Promise<Heat>
 ```
 
