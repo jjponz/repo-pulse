@@ -102,6 +102,37 @@ test('readHistory unquotes paths that git C-quotes', async () => {
   }
 })
 
+test('readHistory keeps a path that is BOTH non-ASCII and C-quoted', async () => {
+  // The crossing the two tests above miss by covering each half on its own: a
+  // path whose quote forces the C-quoting while its accented letter travels
+  // RAW inside those quotes (that is what 'core.quotePath=false' buys). The
+  // raw character must contribute its UTF-8 BYTES like the escapes do; taking
+  // its UTF-16 code unit instead yields an invalid byte and the letter decodes
+  // to U+FFFD, so the path stops matching the one `readDirectories` returns.
+  // The emoji pins the same rule for an astral character, which lives in the
+  // string as a surrogate pair and must not be consumed half at a time.
+  const crossed = createRepoFixture({
+    commits: [
+      {
+        date: '2026-07-20T09:00:00+00:00',
+        email: 'ana@example.com',
+        files: ['src/pagág"x.ts', 'src/emoji🔥"y.ts'],
+      },
+    ],
+  })
+
+  try {
+    const { commits } = await readHistory(crossed.path)
+
+    expect(commits[0]?.files).toEqual(
+      expect.arrayContaining(['src/pagág"x.ts', 'src/emoji🔥"y.ts']),
+    )
+    expect(commits[0]?.files.join('')).not.toContain('�')
+  } finally {
+    crossed.cleanup()
+  }
+})
+
 test('readHistory applies .mailmap', async () => {
   const withMailmap = createRepoFixture({
     commits: COMMITS,

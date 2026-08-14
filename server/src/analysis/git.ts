@@ -139,9 +139,13 @@ const ESCAPES: Readonly<Record<string, number>> = {
  * split, so unquoting any earlier would break parsing.
  *
  * A line that does not start AND end with '"' is already raw and returned
- * unchanged. The '\NNN' escapes are BYTES, not UTF-16 code units, so a
- * multi-byte UTF-8 character arrives as several consecutive '\NNN' escapes:
- * they are collected into a byte buffer and decoded as UTF-8 only at the end.
+ * unchanged. Everything accumulates in ONE unit — bytes — and is decoded as
+ * UTF-8 only at the end: the '\NNN' escapes are bytes (a multi-byte character
+ * arrives as several consecutive ones), and so are the literal characters,
+ * which 'core.quotePath=false' leaves raw INSIDE the quotes. Mixing the two
+ * units is what corrupts a path that is both non-ASCII and quoted, e.g.
+ * 'src/pagág"x.ts', where the quote forces the quoting and the accented letter
+ * travels raw.
  */
 function unquotePath(line: string): string {
   if (line.length < 2 || !line.startsWith('"') || !line.endsWith('"')) return line
@@ -150,7 +154,14 @@ function unquotePath(line: string): string {
   for (let i = 0; i < inner.length; i++) {
     const char = inner[i]
     if (char !== '\\') {
-      bytes.push(char?.charCodeAt(0) ?? 0)
+      // Its own UTF-8 BYTES, to stay in the same unit as the '\NNN' escapes:
+      // `charCodeAt` gives a UTF-16 code unit, and for anything non-ASCII that
+      // is not a valid UTF-8 byte, so the final decode turns it into U+FFFD.
+      // `codePointAt` (not `char`) so an astral character, which lives in the
+      // string as a surrogate PAIR, is taken whole and not by halves.
+      const code = inner.codePointAt(i) ?? 0
+      for (const byte of Buffer.from(String.fromCodePoint(code), 'utf8')) bytes.push(byte)
+      if (code > 0xffff) i += 1
       continue
     }
     const next = inner[i + 1]
