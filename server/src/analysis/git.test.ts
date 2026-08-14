@@ -82,7 +82,7 @@ test('readHistory unquotes paths that git C-quotes', async () => {
       {
         date: '2026-07-20T09:00:00+00:00',
         email: 'ana@example.com',
-        files: ['src/quo"te.ts', 'src/back\\slash.ts'],
+        files: ['src/quo"te.ts', 'src/back\\slash.ts', 'src/bell\u0007char.ts'],
       },
     ],
   })
@@ -90,8 +90,13 @@ test('readHistory unquotes paths that git C-quotes', async () => {
   try {
     const { commits } = await readHistory(quoted.path)
 
-    expect(commits[0]?.files).toHaveLength(2)
-    expect(commits[0]?.files).toEqual(expect.arrayContaining(['src/quo"te.ts', 'src/back\\slash.ts']))
+    // The bell is the case octal decoding alone does not cover: git escapes it
+    // as '\a', not as '\007', so a decoder that only knows '\\', '\"' and the
+    // octal form leaves the backslash in and the path stops matching 'ls-tree'.
+    expect(commits[0]?.files).toHaveLength(3)
+    expect(commits[0]?.files).toEqual(
+      expect.arrayContaining(['src/quo"te.ts', 'src/back\\slash.ts', 'src/bell\u0007char.ts']),
+    )
   } finally {
     quoted.cleanup()
   }

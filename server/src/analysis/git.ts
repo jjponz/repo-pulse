@@ -111,10 +111,28 @@ export function parseHistory(output: string): Commit[] {
 }
 
 /**
+ * Git's own single-character escapes (`quote.c`): the bell, backspace,
+ * form-feed and vertical-tab ones are easy to miss, and leaving them out turns
+ * 'x\ay.ts' into a path with a literal backslash — the very mismatch with
+ * 'ls-tree' that this unquoting exists to remove.
+ */
+const ESCAPES: Readonly<Record<string, number>> = {
+  a: 0x07,
+  b: 0x08,
+  t: 0x09,
+  n: 0x0a,
+  v: 0x0b,
+  f: 0x0c,
+  r: 0x0d,
+  '"': 0x22,
+  '\\': 0x5c,
+}
+
+/**
  * Undoes git's C-quoting of a '--name-only' path. Unlike non-ASCII bytes
  * (spared by 'core.quotePath=false' in `git()` below), git ALWAYS C-quotes a
  * path containing '"', '\' or a control character: it wraps the path in a
- * literal '"..."' pair and escapes '\\', '\"', '\t', '\n', '\r' or, for
+ * literal '"..."' pair and escapes it with one of the `ESCAPES` below or, for
  * anything else, emits the raw byte as a '\NNN' octal escape. This must run
  * per line, after the record has already been split on '\n': the quoting is
  * exactly what stops a filename containing a newline from corrupting that
@@ -137,17 +155,9 @@ function unquotePath(line: string): string {
     }
     const next = inner[i + 1]
     const octal = inner.slice(i + 1, i + 4)
-    if (next === '\\' || next === '"') {
-      bytes.push(next.charCodeAt(0))
-      i += 1
-    } else if (next === 't') {
-      bytes.push(0x09)
-      i += 1
-    } else if (next === 'n') {
-      bytes.push(0x0a)
-      i += 1
-    } else if (next === 'r') {
-      bytes.push(0x0d)
+    const escaped = next === undefined ? undefined : ESCAPES[next]
+    if (escaped !== undefined) {
+      bytes.push(escaped)
       i += 1
     } else if (/^[0-7]{3}$/.test(octal)) {
       bytes.push(Number.parseInt(octal, 8))
