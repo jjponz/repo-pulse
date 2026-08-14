@@ -47,6 +47,56 @@ test('percent is over the main folder total', async () => {
   expect(outside.children).toEqual([])
 })
 
+test('percent stays over the main folder total when drilling down', async () => {
+  // 5 commits touch src/ (checkout: 2, cart: 2, utils: 1): the main folder
+  // total. Of those, only 2 touch src/checkout (its own, deeper-level total).
+  // 'pay.ts' is touched by 1 of those 2 commits: the correct percent is
+  // round(1/5*100) = 20, over the main folder total. Computing it over the
+  // level's own total (2) instead would give round(1/2*100) = 50, so the two
+  // are distinguishable and a mix-up turns this test red.
+  fixture = createRepoFixture({
+    commits: [
+      { date: '2026-07-20T09:00:00+00:00', email: 'ana@example.com', files: ['src/checkout/pay.ts'] },
+      { date: '2026-07-21T09:00:00+00:00', email: 'ana@example.com', files: ['src/checkout/refund.ts'] },
+      { date: '2026-07-22T09:00:00+00:00', email: 'bea@example.com', files: ['src/cart/add.ts'] },
+      { date: '2026-07-23T09:00:00+00:00', email: 'bea@example.com', files: ['src/cart/remove.ts'] },
+      { date: '2026-07-24T09:00:00+00:00', email: 'cris@example.com', files: ['src/utils/format.ts'] },
+    ],
+  })
+
+  const heat = await heatTree(fixture.path, '12m', {
+    now: NOW,
+    mainFolder: 'src',
+    path: 'src/checkout',
+  })
+
+  expect(heat.mainFolder).toBe('src')
+  expect(heat.path).toBe('src/checkout')
+  // The level's own total (2) is exposed as `commits`, but must NOT be the
+  // percentage base for its children.
+  expect(heat.commits).toBe(2)
+  const pay = heat.children.find((child) => child.name === 'pay.ts')
+  expect(pay).toMatchObject({ commits: 1, percent: 20 })
+
+  // A trailing slash (as the UI would build joining breadcrumb segments) must
+  // resolve to the exact same level as the normalized path.
+  const trailingSlash = await heatTree(fixture.path, '12m', {
+    now: NOW,
+    mainFolder: 'src',
+    path: 'src/checkout/',
+  })
+  expect(trailingSlash).toEqual(heat)
+
+  // Repeated slashes and a saved main folder with stray slashes normalize the
+  // same way, without falling back to the automatic main folder.
+  const stray = await heatTree(fixture.path, '12m', {
+    now: NOW,
+    mainFolder: '/src/',
+    path: '//src//checkout//',
+  })
+  expect(stray).toEqual(heat)
+})
+
 test('package-lock.json is in neither tree nor KPI', async () => {
   fixture = createRepoFixture({
     commits: [

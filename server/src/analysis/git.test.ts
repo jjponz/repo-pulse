@@ -46,6 +46,29 @@ test('readHistory includes the files of the root commit', async () => {
   expect(commits.at(-1)?.files).toEqual(['src/a.ts'])
 })
 
+test('readHistory does not C-quote non-ASCII paths', async () => {
+  // By default git C-quotes non-ASCII paths in '--name-only' output: this
+  // path would come back as the literal '"src/p\303\241ginas/uno.ts"'
+  // (quotes included) instead of the raw UTF-8 path below.
+  const accented = createRepoFixture({
+    commits: [
+      {
+        date: '2026-07-20T09:00:00+00:00',
+        email: 'ana@example.com',
+        files: ['src/páginas/uno.ts'],
+      },
+    ],
+  })
+
+  try {
+    const { commits } = await readHistory(accented.path)
+
+    expect(commits[0]?.files).toEqual(['src/páginas/uno.ts'])
+  } finally {
+    accented.cleanup()
+  }
+})
+
 test('readHistory applies .mailmap', async () => {
   const withMailmap = createRepoFixture({
     commits: COMMITS,

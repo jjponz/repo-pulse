@@ -8,8 +8,10 @@ const AUTO_MAIN_FOLDER = 'src'
 
 export interface HeatEntry {
   name: string
+  /** When a name is a file in one commit and a directory in another, 'dir' wins and the two histories merge into this single row. */
   kind: 'dir' | 'file'
   commits: number
+  /** Over the main folder total (see `heatTree`). Percentages across children do NOT add up to 100: a commit touching three children counts once in each. */
   percent: number
 }
 
@@ -43,8 +45,8 @@ export async function heatTree(
   const now = (opts.now ?? new Date()).getTime()
   const [directories, { commits }] = await Promise.all([readDirectories(repo), readHistory(repo)])
 
-  const mainFolder = resolveMainFolder(directories, opts.mainFolder)
-  const path = opts.path ?? mainFolder.mainFolder
+  const mainFolder = resolveMainFolder(directories, normalizePath(opts.mainFolder))
+  const path = normalizePath(opts.path) ?? mainFolder.mainFolder
 
   const grid = buildGrid(
     window,
@@ -60,6 +62,11 @@ export async function heatTree(
     : []
 
   return { ...mainFolder, path, commits: pathCommits, children }
+}
+
+/** Strips leading/trailing '/' and collapses repeated '/', so 'src/checkout/' and 'src/checkout' resolve to the same level. `undefined` passes through untouched. */
+function normalizePath(path: string | undefined): string | undefined {
+  return path === undefined ? undefined : path.split('/').filter((segment) => segment !== '').join('/')
 }
 
 /** Whether `path` is the main folder itself or hangs from it. The root ('') covers everything. */
@@ -114,7 +121,10 @@ function childrenOf(commits: readonly Commit[], path: string, total: number): He
     percent: total === 0 ? 0 : Math.round((entry.commits.size / total) * 100),
   }))
 
-  return entries.sort((a, b) => b.commits - a.commits || a.name.localeCompare(b.name))
+  // Plain '<'/'>' compares by UTF-16 code unit, not `localeCompare`'s
+  // ICU-driven, locale-dependent collation: the tie-break order must not
+  // change between machines with a different `LANG`.
+  return entries.sort((a, b) => b.commits - a.commits || (a.name < b.name ? -1 : a.name > b.name ? 1 : 0))
 }
 
 /** Immediate child of `path` that `file` belongs to, or null when it is not under `path`. */

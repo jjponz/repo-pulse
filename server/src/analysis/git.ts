@@ -119,7 +119,12 @@ function ensureGitRepo(repo: string): void {
 /** Read-only: this module never fetches, pulls or writes into the clone. */
 async function git(repo: string, args: readonly string[]): Promise<string> {
   try {
-    const { stdout } = await run('git', ['-C', repo, ...args], {
+    // 'core.quotePath=false': by default git C-quotes non-ASCII paths in
+    // '--name-only' output (e.g. 'src/páginas/uno.ts' becomes the literal
+    // '"src/p\303\241ginas/uno.ts"'), while 'ls-tree -z' never does. Forcing it
+    // off keeps every path this module returns raw and consistent, which
+    // `heat.ts`'s prefix matching and `isNoise` both rely on.
+    const { stdout } = await run('git', ['-C', repo, '-c', 'core.quotePath=false', ...args], {
       encoding: 'utf8',
       maxBuffer: MAX_OUTPUT,
     })

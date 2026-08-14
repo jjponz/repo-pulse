@@ -25,7 +25,7 @@ export async function walkHistory(
   return { ...aggregate(window, commits, now), headSha }
 }
 
-export { AnalysisError, readHeadSha } from './git.js'
+export { AnalysisError, readDirectories, readHeadSha } from './git.js'
 // `History` is deliberately NOT exported: it carries `Commit[]`, and a `Commit`
 // carries the author email. That type dies in the module, like the data.
 export type { AnalysisErrorCode } from './git.js'
