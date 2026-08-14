@@ -1,4 +1,5 @@
 .worktrees/
 .agent/SLICE.md
+.superpowers/
 node_modules/
 dist/
