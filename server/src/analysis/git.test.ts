@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, beforeAll, expect, test } from 'vitest'
-import { AnalysisError, parseHistory, readHeadSha, readHistory } from './git.js'
+import { AnalysisError, parseHistory, readDirectories, readHeadSha, readHistory } from './git.js'
 import { createRepoFixture, nonMergeCommits } from '../testing/repo-fixture.js'
 import type { CommitFixture, RepoFixture } from '../testing/repo-fixture.js'
 
@@ -44,6 +44,93 @@ test('readHistory includes the files of the root commit', async () => {
   const { commits } = await readHistory(fixture.path)
 
   expect(commits.at(-1)?.files).toEqual(['src/a.ts'])
+})
+
+test('readHistory does not C-quote non-ASCII paths', async () => {
+  // By default git C-quotes non-ASCII paths in '--name-only' output: this
+  // path would come back as the literal '"src/p\303\241ginas/uno.ts"'
+  // (quotes included) instead of the raw UTF-8 path below.
+  const accented = createRepoFixture({
+    commits: [
+      {
+        date: '2026-07-20T09:00:00+00:00',
+        email: 'ana@example.com',
+        files: ['src/páginas/uno.ts'],
+      },
+    ],
+  })
+
+  try {
+    const { commits } = await readHistory(accented.path)
+
+    expect(commits[0]?.files).toEqual(['src/páginas/uno.ts'])
+  } finally {
+    accented.cleanup()
+  }
+})
+
+test('readHistory unquotes paths that git C-quotes', async () => {
+  // '"' and '\' trigger git's C-quoting UNCONDITIONALLY, unlike non-ASCII
+  // bytes (which 'core.quotePath=false' alone spares): 'git log --name-only'
+  // returns the literal '"src/quo\"te.ts"' and '"src/back\\slash.ts"' instead
+  // of the raw paths below, while 'ls-tree -z' (used by `readDirectories`)
+  // returns them raw. Written via the fixture's normal `files` mechanism:
+  // both characters are ordinary bytes on the filesystem, so this needs no
+  // special-cased git commands.
+  const quoted = createRepoFixture({
+    commits: [
+      {
+        date: '2026-07-20T09:00:00+00:00',
+        email: 'ana@example.com',
+        files: ['src/quo"te.ts', 'src/back\\slash.ts', 'src/bell\u0007char.ts'],
+      },
+    ],
+  })
+
+  try {
+    const { commits } = await readHistory(quoted.path)
+
+    // The bell is the case octal decoding alone does not cover: git escapes it
+    // as '\a', not as '\007', so a decoder that only knows '\\', '\"' and the
+    // octal form leaves the backslash in and the path stops matching 'ls-tree'.
+    expect(commits[0]?.files).toHaveLength(3)
+    expect(commits[0]?.files).toEqual(
+      expect.arrayContaining(['src/quo"te.ts', 'src/back\\slash.ts', 'src/bell\u0007char.ts']),
+    )
+  } finally {
+    quoted.cleanup()
+  }
+})
+
+test('readHistory keeps a path that is BOTH non-ASCII and C-quoted', async () => {
+  // The crossing the two tests above miss by covering each half on its own: a
+  // path whose quote forces the C-quoting while its accented letter travels
+  // RAW inside those quotes (that is what 'core.quotePath=false' buys). The
+  // raw character must contribute its UTF-8 BYTES like the escapes do; taking
+  // its UTF-16 code unit instead yields an invalid byte and the letter decodes
+  // to U+FFFD, so the path stops matching the one `readDirectories` returns.
+  // The emoji pins the same rule for an astral character, which lives in the
+  // string as a surrogate pair and must not be consumed half at a time.
+  const crossed = createRepoFixture({
+    commits: [
+      {
+        date: '2026-07-20T09:00:00+00:00',
+        email: 'ana@example.com',
+        files: ['src/pagág"x.ts', 'src/emoji🔥"y.ts'],
+      },
+    ],
+  })
+
+  try {
+    const { commits } = await readHistory(crossed.path)
+
+    expect(commits[0]?.files).toEqual(
+      expect.arrayContaining(['src/pagág"x.ts', 'src/emoji🔥"y.ts']),
+    )
+    expect(commits[0]?.files.join('')).not.toContain('�')
+  } finally {
+    crossed.cleanup()
+  }
 })
 
 test('readHistory applies .mailmap', async () => {
@@ -98,6 +185,32 @@ test('a directory that is not a git repo fails with the not-a-git-repo code', as
     await expect(readHistory(directory)).rejects.toMatchObject({ code: 'not-a-git-repo' })
   } finally {
     rmSync(directory, { recursive: true, force: true })
+  }
+})
+
+test('readDirectories lists dirs, not files', async () => {
+  const withDirs = createRepoFixture({
+    commits: [
+      {
+        date: '2026-07-20T09:00:00+00:00',
+        email: 'ana@example.com',
+        files: ['src/components/a.ts', 'lib/b.ts', 'README.md'],
+      },
+    ],
+  })
+  const empty = createRepoFixture()
+
+  try {
+    const directories = await readDirectories(withDirs.path)
+
+    expect(new Set(directories)).toEqual(new Set(['src', 'src/components', 'lib']))
+    expect(directories).not.toContain('README.md')
+
+    // A repo without HEAD has no directories to list either.
+    expect(await readDirectories(empty.path)).toEqual([])
+  } finally {
+    withDirs.cleanup()
+    empty.cleanup()
   }
 })
 

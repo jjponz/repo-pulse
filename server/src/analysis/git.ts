@@ -78,6 +78,19 @@ export async function readHeadSha(repo: string): Promise<string | null> {
   }
 }
 
+/**
+ * Every directory of the HEAD tree, relative to `repo`, recursive. Used to
+ * auto-detect the main folder and to validate a saved one: like `readHistory`,
+ * it short-circuits on "no HEAD" instead of letting the `ls-tree` failure
+ * (exit 128) escape.
+ */
+export async function readDirectories(repo: string): Promise<string[]> {
+  const headSha = await readHeadSha(repo)
+  if (headSha === null) return []
+  const output = await git(repo, ['ls-tree', '-d', '-r', '--name-only', '-z', 'HEAD'])
+  return output.split(RECORD_SEPARATOR).filter((line) => line !== '')
+}
+
 export function parseHistory(output: string): Commit[] {
   const commits: Commit[] = []
   for (const record of output.split(RECORD_SEPARATOR)) {
@@ -91,10 +104,82 @@ export function parseHistory(output: string): Commit[] {
       sha,
       date,
       author: email.trim().toLowerCase(),
-      files: lines.slice(1).filter((line) => line !== ''),
+      files: lines.slice(1).filter((line) => line !== '').map(unquotePath),
     })
   }
   return commits
+}
+
+/**
+ * Git's own single-character escapes (`quote.c`): the bell, backspace,
+ * form-feed and vertical-tab ones are easy to miss, and leaving them out turns
+ * 'x\ay.ts' into a path with a literal backslash — the very mismatch with
+ * 'ls-tree' that this unquoting exists to remove.
+ */
+const ESCAPES: Readonly<Record<string, number>> = {
+  a: 0x07,
+  b: 0x08,
+  t: 0x09,
+  n: 0x0a,
+  v: 0x0b,
+  f: 0x0c,
+  r: 0x0d,
+  '"': 0x22,
+  '\\': 0x5c,
+}
+
+/**
+ * Undoes git's C-quoting of a '--name-only' path. Unlike non-ASCII bytes
+ * (spared by 'core.quotePath=false' in `git()` below), git ALWAYS C-quotes a
+ * path containing '"', '\' or a control character: it wraps the path in a
+ * literal '"..."' pair and escapes it with one of the `ESCAPES` below or, for
+ * anything else, emits the raw byte as a '\NNN' octal escape. This must run
+ * per line, after the record has already been split on '\n': the quoting is
+ * exactly what stops a filename containing a newline from corrupting that
+ * split, so unquoting any earlier would break parsing.
+ *
+ * A line that does not start AND end with '"' is already raw and returned
+ * unchanged. Everything accumulates in ONE unit — bytes — and is decoded as
+ * UTF-8 only at the end: the '\NNN' escapes are bytes (a multi-byte character
+ * arrives as several consecutive ones), and so are the literal characters,
+ * which 'core.quotePath=false' leaves raw INSIDE the quotes. Mixing the two
+ * units is what corrupts a path that is both non-ASCII and quoted, e.g.
+ * 'src/pagág"x.ts', where the quote forces the quoting and the accented letter
+ * travels raw.
+ */
+function unquotePath(line: string): string {
+  if (line.length < 2 || !line.startsWith('"') || !line.endsWith('"')) return line
+  const inner = line.slice(1, -1)
+  const bytes: number[] = []
+  for (let i = 0; i < inner.length; i++) {
+    const char = inner[i]
+    if (char !== '\\') {
+      // Its own UTF-8 BYTES, to stay in the same unit as the '\NNN' escapes:
+      // `charCodeAt` gives a UTF-16 code unit, and for anything non-ASCII that
+      // is not a valid UTF-8 byte, so the final decode turns it into U+FFFD.
+      // `codePointAt` (not `char`) so an astral character, which lives in the
+      // string as a surrogate PAIR, is taken whole and not by halves.
+      const code = inner.codePointAt(i) ?? 0
+      for (const byte of Buffer.from(String.fromCodePoint(code), 'utf8')) bytes.push(byte)
+      if (code > 0xffff) i += 1
+      continue
+    }
+    const next = inner[i + 1]
+    const octal = inner.slice(i + 1, i + 4)
+    const escaped = next === undefined ? undefined : ESCAPES[next]
+    if (escaped !== undefined) {
+      bytes.push(escaped)
+      i += 1
+    } else if (/^[0-7]{3}$/.test(octal)) {
+      bytes.push(Number.parseInt(octal, 8))
+      i += 3
+    } else {
+      // Not a recognised escape: keep the backslash as data rather than
+      // silently dropping it.
+      bytes.push(0x5c)
+    }
+  }
+  return Buffer.from(bytes).toString('utf8')
 }
 
 function ensureGitRepo(repo: string): void {
@@ -106,7 +191,16 @@ function ensureGitRepo(repo: string): void {
 /** Read-only: this module never fetches, pulls or writes into the clone. */
 async function git(repo: string, args: readonly string[]): Promise<string> {
   try {
-    const { stdout } = await run('git', ['-C', repo, ...args], {
+    // 'core.quotePath=false': by default git C-quotes NON-ASCII paths in
+    // '--name-only' output (e.g. 'src/páginas/uno.ts' becomes the literal
+    // '"src/p\303\241ginas/uno.ts"'), while 'ls-tree -z' never does. Forcing it
+    // off spares 'parseHistory' the unquoting for that common case. It does
+    // NOT cover '"', '\' or control characters: git C-quotes those
+    // UNCONDITIONALLY regardless of this setting, so 'parseHistory' undoes
+    // that quoting itself (see `unquotePath`) to keep every path this module
+    // returns raw and consistent, which `heat.ts`'s prefix matching and
+    // `isNoise` both rely on.
+    const { stdout } = await run('git', ['-C', repo, '-c', 'core.quotePath=false', ...args], {
       encoding: 'utf8',
       maxBuffer: MAX_OUTPUT,
     })
