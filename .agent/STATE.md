@@ -19,8 +19,8 @@ base: main
 # actualización de STATE.md no te vuelve a dejar atrás.
 last_commit: ""
 github_issue: null
-you_are_here: "Slice #1 cerrado (PR #8 en squash, 9824d3d) y cosechado. Slice #2 (análisis: pulso y gente) en vuelo en .worktrees/2 sobre feat/2: publicó su plan en el issue (2 comentarios, 74 KB, commiteado en la rama y validado con --check-plan) y el GATE PLAN SE CERRÓ con un 'ok' en el hilo el 2026-08-13 a las 15:45. Ese 'ok' NO despertó al agente por sí solo (ver gotchas): hubo que empujarlo a mano en su sesión cmux, y desde entonces sí está implementando las 8 tareas. Cap 1/1 ocupado; #3–#7 en status:backlog."
-next_action: "Esperar el PR del #2 contra main (el kickoff le exige 'Closes #2' en el CUERPO) y su release a status:in-review; entonces revisarlo, cerrar el gate apply y mergear"
+you_are_here: "Slices #1 y #2 cerrados y cosechados: #1 por PR #8 en squash (9824d3d) y #2 por PR #10 en squash (46a52c0, mergeado el 2026-08-14 a las 10:42, CI en verde y frontera respetada). De #2 ya no queda residuo: .worktrees/2 borrado, rama local feat/2 borrada. Cap 0/1 LIBRE; #3–#7 en status:backlog. El #3 (análisis: calor) es el siguiente en orden §9 y su única dependencia (#2) está mergeada; el #4 (API HTTP) depende de #2 y #3, así que todavía no es candidato."
+next_action: "Despachar el #3 (análisis: calor) con /ct-next y el env de los gotchas; luego atender su gate plan (que NO despierta al agente solo: hay que empujarlo por cmux)"
 # blocked: null = NO bloqueado. Si el trabajo no puede continuar (una decisión
 # lo paró, el plan resultó falso, falta algo de fuera), NO lo escribas en prosa
 # dentro de next_action: ponlo aquí. El hook de SessionStart lo anuncia al
@@ -30,20 +30,25 @@ next_action: "Esperar el PR del #2 contra main (el kickoff le exige 'Closes #2' 
 blocked: null
 # verify: la comprobación PENDIENTE que valida este trabajo AL TERMINAR — nunca
 # un hecho ya comprobado, aunque se redacte en presente.
-verify: "el PR del #2 llega contra main con 'Closes #2' en el cuerpo, CI verde, y el diff no toca app.ts/index.ts/app.test.ts ni web/ (la frontera que el propio plan declara)"
+verify: "el plan del #3 aparece como comentario de su issue y, tras el OK, su PR contra main llega con 'Closes #3' en el cuerpo y CI verde"
 tasks: []
 ---
 ## Current State
-Epic groomeado (milestone + issues #1–#7 + labels + Project v2). Slice #1
-(esqueleto: monorepo npm workspaces con CI) mergeado y cosechado. Slice #2
-(análisis: pulso y gente) en vuelo desde 2026-08-13: agente vivo en
-.worktrees/2 sobre feat/2, parado en el gate plan por diseño. #3–#7 en
-status:backlog. El cap está lleno (1/1): no despachar otro hasta cerrar el #2.
+Epic groomeado (milestone + issues #1–#7 + labels + Project v2). Dos slices
+entregados: #1 (esqueleto: monorepo npm workspaces con CI) y #2 (análisis:
+pulso y gente, `server/src/analysis/` — walkHistory, leerHeadSha, ruido.ts y
+los tipos que consumirán Calor y la API). Ambos cosechados. Ningún agente en
+vuelo: el cap está libre (0/1). #3–#7 en status:backlog.
 ## Immediate Next Steps
-1. Esperar el PR del #2 y su paso a status:in-review.
-2. Revisarlo contra el verify de arriba, cerrar el gate apply y mergear.
-3. Cosechar .worktrees/2 y feat/2, y promover el siguiente slice (#3 o #4).
+1. Despachar el #3 (análisis: calor) con /ct-next.
+2. Verificar por cmux que el agente arrancó de verdad, no solo la ventana.
+3. Atender su gate plan: revisar el plan en el issue, responder OK y EMPUJARLO
+   a mano por cmux (responder en GitHub no lo despierta).
 ## Decisions Made
+- Slice #2 cerrado el 2026-08-14 sin gate apply: su issue no lleva la label
+  `gate:apply` (solo `gate:plan`, cerrado el 13), y el slice no toca ningún
+  entorno real. La evidencia del merge fue `ci pass` en el PR #10, `Closes #2`
+  en el cuerpo, y un diff que no roza app.ts/index.ts/app.test.ts ni web/.
 - Gate plan del #2 cerrado con OK (2026-08-13 15:45). Con él se sancionaron tres
   cosas que el issue NO pedía y que el plan añade con motivo: partir el tsconfig
   de `server/` en typecheck (todo `src`) + emit (sin tests), que AGENTS.md asigna
@@ -71,13 +76,32 @@ status:backlog. El cap está lleno (1/1): no despachar otro hasta cerrar el #2.
   borrar sin git con `gh api -X DELETE repos/<owner>/<repo>/git/refs/heads/<r>`.
 - `ACCOUNT_MAP` (scripts/kickoff.js del plugin) no tiene patrón para `jjponz/*`:
   el dispatcher cae a la cuenta personal por defecto, que aquí es la correcta.
+- EL AGENTE DEL SLICE EDITA ESTE FICHERO dentro de su PR (el #2 lo hizo). Si la
+  coordinadora tenía commits de STATE.md en `main` sin pushear, el squash los
+  trae de vuelta y `main` queda «ahead N, behind 1» con el MISMO contenido por
+  las dos vías. Antes de rebasar, comparar el fichero:
+      git diff --quiet <local> <origin/main> -- .agent/STATE.md
+  Si son idénticos, `git reset --hard origin/main` no pierde nada y evita un
+  conflicto tonto. Si difieren, ahí sí hay que fusionar a mano.
 - CERRAR UN GATE NO REANUDA AL AGENTE. El agente para en el gate y se queda
   IDLE en su sesión cmux; nada consulta el hilo del issue, así que responder
   'ok' en GitHub no le llega. Hay que empujarlo a mano:
-      cmux list-workspaces                      # localiza el workspace del slice
+      cmux workspace list                       # localiza el workspace del slice
       cmux send --workspace workspace:<n> "<el OK y qué debe hacer>"
       cmux send-key --workspace workspace:<n> Enter
   Los DOS comandos: `send` solo escribe en el prompt, deja el texto sin enviar
   (el `\n` que documenta su ayuda no lo envió aquí). Comprobar con
   `cmux read-screen --workspace workspace:<n>` que arrancó de verdad.
+  (`cmux list-workspaces` sigue funcionando, pero ya es alias de
+  `cmux workspace list`; el label del workspace se queda pegado al del slice
+  anterior, así que no fiarse de él para saber qué slice corre dentro.)
+## Residuo pendiente
+- `origin/feat/2` sigue viva en GitHub: el borrado quedó fuera del alcance de
+  esta sesión. Se limpia con
+  `gh api -X DELETE repos/jjponz/repo-pulse/git/refs/heads/feat/2`, o con
+  `git push origin --delete feat/2` desde una rama que no sea `main`.
+- Rama local `respaldo-feat-2-pre-rebase`: red de seguridad del rebase del #2.
+  Su contenido está contenido en `main` salvo cosas que se corrigieron DESPUÉS
+  (`git diff origin/main respaldo-feat-2-pre-rebase` solo resta). Es borrable,
+  pero se deja porque nadie lo pidió.
 ## Critical Files
