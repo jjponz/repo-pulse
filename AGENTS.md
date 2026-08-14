@@ -33,7 +33,7 @@ push a `main`.
 ## Project layout
 ```
 server/            # API Express + TS (build → server/dist/)
-  src/analysis/    # análisis del historial: ÚNICO código que ejecuta git
+  src/analysis/    # análisis del historial: ÚNICO código de producción que ejecuta git
   src/testing/     # helpers de test (repos git fixture); fuera del emit
 web/               # UI Vite + React + TS
 docs/              # specs, planes y maqueta de referencia
