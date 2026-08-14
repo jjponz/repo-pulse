@@ -13,6 +13,11 @@ test('la concentración es el mínimo nº de autores que suma el 80% o más', ()
   expect(concentracion([1, 1, 1, 1, 1])).toEqual({ autores: 4, porcentaje: 80 })
   expect(concentracion([8, 2])).toEqual({ autores: 1, porcentaje: 80 })
   expect(concentracion([10])).toEqual({ autores: 1, porcentaje: 100 })
+  // Fijan el umbral en exactamente 80, no en "algún umbral": con 4 de 5 (80%
+  // justo) un autor ya alcanza; con 79 de 100 (79%, justo por debajo) uno
+  // solo no llega y hace falta el segundo.
+  expect(concentracion([4, 1])).toEqual({ autores: 1, porcentaje: 80 })
+  expect(concentracion([79, 21])).toEqual({ autores: 2, porcentaje: 100 })
 })
 
 test('sin commits la concentración no tiene autores', () => {
