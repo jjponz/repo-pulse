@@ -26,7 +26,9 @@ export async function walkHistory(
 }
 
 export { ErrorAnalisis, leerHeadSha } from './git.js'
-export type { CodigoErrorAnalisis, Historial } from './git.js'
+// `Historial` NO se exporta a propósito: lleva `Commit[]`, y un `Commit` lleva
+// el email del autor. Ese tipo muere en el módulo, como el dato.
+export type { CodigoErrorAnalisis } from './git.js'
 export { VENTANAS, VENTANA_POR_DEFECTO, esVentana } from './ventanas.js'
 export type {
   Analisis,
