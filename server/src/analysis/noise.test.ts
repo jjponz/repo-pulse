@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest'
-import { esRuido } from './ruido.js'
+import { isNoise } from './noise.js'
 
 test.each([
   'package-lock.json',
@@ -14,10 +14,10 @@ test.each([
   'web/assets/app.js.map',
   'dist/index.js',
   'server/dist/index.js',
-  'build/salida.txt',
-  'vendor/lib/cosa.rb',
-])('«%s» es ruido', (ruta) => {
-  expect(esRuido(ruta)).toBe(true)
+  'build/output.txt',
+  'vendor/lib/thing.rb',
+])('"%s" is noise', (path) => {
+  expect(isNoise(path)).toBe(true)
 })
 
 test.each([
@@ -26,9 +26,9 @@ test.each([
   'web/src/App.tsx',
   'README.md',
   'package.json',
-  'src/distribucion.ts',
+  'src/distribution.ts',
   'src/builder.ts',
   'src/vendors.ts',
-])('«%s» no es ruido', (ruta) => {
-  expect(esRuido(ruta)).toBe(false)
+])('"%s" is not noise', (path) => {
+  expect(isNoise(path)).toBe(false)
 })

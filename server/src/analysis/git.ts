@@ -2,129 +2,129 @@ import { execFile } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { promisify } from 'node:util'
-import type { Commit } from './tipos.js'
+import type { Commit } from './types.js'
 
-const ejecutar = promisify(execFile)
+const run = promisify(execFile)
 
-/** Salida máxima de 'git log' que aceptamos en memoria (repos con decenas de miles de commits). */
-const MAX_SALIDA = 64 * 1024 * 1024
+/** Largest 'git log' output we accept in memory (repos with tens of thousands of commits). */
+const MAX_OUTPUT = 64 * 1024 * 1024
 
-const SEPARADOR_REGISTRO = '\u0000'
-const SEPARADOR_CAMPO = '\u001f'
-
-/**
- * '%aI' = fecha de autor en ISO 8601 estricto. '%aE' = email de autor CON
- * '.mailmap' aplicado; '%ae' (minúscula) no lo aplica y por eso no se usa.
- */
-const FORMATO = '%x00%H%x1f%aI%x1f%aE'
+const RECORD_SEPARATOR = '\u0000'
+const FIELD_SEPARATOR = '\u001f'
 
 /**
- * '--no-merges': los merges no son trabajo. '--no-renames': un rename es un path
- * nuevo. '--root': sin él, los ficheros del commit raíz no aparecerían.
+ * '%aI' = author date in strict ISO 8601. '%aE' = author email WITH '.mailmap'
+ * applied; '%ae' (lowercase) does not apply it, which is why it is not used.
  */
-const ARGS_LOG: readonly string[] = [
+const FORMAT = '%x00%H%x1f%aI%x1f%aE'
+
+/**
+ * '--no-merges': merges are not work. '--no-renames': a rename is a new path.
+ * '--root': without it, the root commit's files would not show up.
+ */
+const LOG_ARGS: readonly string[] = [
   'log',
   'HEAD',
   '--no-merges',
   '--no-renames',
   '--root',
-  `--pretty=format:${FORMATO}`,
+  `--pretty=format:${FORMAT}`,
   '--name-only',
 ]
 
-export type CodigoErrorAnalisis = 'no-es-repo-git' | 'git-ha-fallado'
+export type AnalysisErrorCode = 'not-a-git-repo' | 'git-failed'
 
-export class ErrorAnalisis extends Error {
-  readonly codigo: CodigoErrorAnalisis
-  /** Código de salida del proceso git que originó el fallo, o null si no viene de un proceso (p.ej. el binario no existe). */
-  readonly codigoSalida: number | null
+export class AnalysisError extends Error {
+  readonly code: AnalysisErrorCode
+  /** Exit code of the git process behind the failure, or null when it does not come from a process (e.g. the binary is missing). */
+  readonly exitCode: number | null
 
-  constructor(codigo: CodigoErrorAnalisis, mensaje: string, codigoSalida: number | null = null) {
-    super(mensaje)
-    this.name = 'ErrorAnalisis'
-    this.codigo = codigo
-    this.codigoSalida = codigoSalida
+  constructor(code: AnalysisErrorCode, message: string, exitCode: number | null = null) {
+    super(message)
+    this.name = 'AnalysisError'
+    this.code = code
+    this.exitCode = exitCode
   }
 }
 
-export interface Historial {
-  /** sha de HEAD, o null si el repo no tiene ningún commit */
+export interface History {
+  /** HEAD sha, or null when the repo has no commits */
   headSha: string | null
-  /** commits sin merges alcanzables desde HEAD, del más reciente al más antiguo */
+  /** non-merge commits reachable from HEAD, newest first */
   commits: Commit[]
 }
 
-export async function leerHistorial(repo: string): Promise<Historial> {
-  const headSha = await leerHeadSha(repo)
+export async function readHistory(repo: string): Promise<History> {
+  const headSha = await readHeadSha(repo)
   if (headSha === null) return { headSha: null, commits: [] }
-  return { headSha, commits: parsearHistorial(await git(repo, ARGS_LOG)) }
+  return { headSha, commits: parseHistory(await git(repo, LOG_ARGS)) }
 }
 
 /**
- * sha de HEAD sin recorrer el historial: es la tercera pata de la clave de caché
- * (repo, ventana, sha de HEAD) y este módulo es el único que ejecuta git.
+ * HEAD sha without walking the history: it is the third leg of the cache key
+ * (repo, window, HEAD sha), and this module is the only one that runs git.
  */
-export async function leerHeadSha(repo: string): Promise<string | null> {
-  asegurarRepoGit(repo)
+export async function readHeadSha(repo: string): Promise<string | null> {
+  ensureGitRepo(repo)
   try {
-    // '--verify --quiet' distingue por código de salida "no hay HEAD todavía" (1)
-    // de un fallo real (128 u otro): con el 'rev-parse HEAD' a secas ambos casos
-    // salían con 128 y eran indistinguibles.
+    // '--verify --quiet' tells "no HEAD yet" (1) from a real failure (128 or
+    // other) by exit code: with a plain 'rev-parse HEAD' both cases exited 128
+    // and were indistinguishable.
     return (await git(repo, ['rev-parse', '--verify', '--quiet', 'HEAD'])).trim()
   } catch (error) {
-    // Un repo git recién inicializado no tiene HEAD todavía (exit 1): no es un fallo.
-    if (error instanceof ErrorAnalisis && error.codigoSalida === 1) return null
+    // A freshly initialised git repo has no HEAD yet (exit 1): that is not a failure.
+    if (error instanceof AnalysisError && error.exitCode === 1) return null
     throw error
   }
 }
 
-export function parsearHistorial(salida: string): Commit[] {
+export function parseHistory(output: string): Commit[] {
   const commits: Commit[] = []
-  for (const registro of salida.split(SEPARADOR_REGISTRO)) {
-    if (registro.trim() === '') continue
-    const lineas = registro.split('\n')
-    const [sha, fechaISO, email] = (lineas[0] ?? '').split(SEPARADOR_CAMPO)
-    if (sha === undefined || fechaISO === undefined || email === undefined) continue
-    const fecha = Date.parse(fechaISO)
-    if (Number.isNaN(fecha)) continue
+  for (const record of output.split(RECORD_SEPARATOR)) {
+    if (record.trim() === '') continue
+    const lines = record.split('\n')
+    const [sha, isoDate, email] = (lines[0] ?? '').split(FIELD_SEPARATOR)
+    if (sha === undefined || isoDate === undefined || email === undefined) continue
+    const date = Date.parse(isoDate)
+    if (Number.isNaN(date)) continue
     commits.push({
       sha,
-      fecha,
-      autor: email.trim().toLowerCase(),
-      ficheros: lineas.slice(1).filter((linea) => linea !== ''),
+      date,
+      author: email.trim().toLowerCase(),
+      files: lines.slice(1).filter((line) => line !== ''),
     })
   }
   return commits
 }
 
-function asegurarRepoGit(repo: string): void {
+function ensureGitRepo(repo: string): void {
   if (!existsSync(join(repo, '.git'))) {
-    throw new ErrorAnalisis('no-es-repo-git', `${repo} no es un repositorio git: no hay .git`)
+    throw new AnalysisError('not-a-git-repo', `${repo} is not a git repository: no .git found`)
   }
 }
 
-/** Solo lectura: este módulo nunca hace fetch, pull ni escribe en el clon. */
+/** Read-only: this module never fetches, pulls or writes into the clone. */
 async function git(repo: string, args: readonly string[]): Promise<string> {
   try {
-    const { stdout } = await ejecutar('git', ['-C', repo, ...args], {
+    const { stdout } = await run('git', ['-C', repo, ...args], {
       encoding: 'utf8',
-      maxBuffer: MAX_SALIDA,
+      maxBuffer: MAX_OUTPUT,
     })
     return stdout
   } catch (error) {
-    throw new ErrorAnalisis(
-      'git-ha-fallado',
-      `git ${args.join(' ')} ha fallado en ${repo}: ${String(error)}`,
-      codigoSalidaDe(error),
+    throw new AnalysisError(
+      'git-failed',
+      `git ${args.join(' ')} failed in ${repo}: ${String(error)}`,
+      exitCodeOf(error),
     )
   }
 }
 
 /**
- * El rechazo de `execFile` expone el código de salida en `.code`: un número si el
- * proceso llegó a terminar, o un string (p.ej. 'ENOENT') si ni siquiera arrancó.
+ * `execFile`'s rejection exposes the exit code in `.code`: a number when the
+ * process did terminate, or a string (e.g. 'ENOENT') when it never started.
  */
-function codigoSalidaDe(error: unknown): number | null {
+function exitCodeOf(error: unknown): number | null {
   if (typeof error !== 'object' || error === null || !('code' in error)) return null
   const { code } = error
   return typeof code === 'number' ? code : null

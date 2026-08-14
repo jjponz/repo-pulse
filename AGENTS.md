@@ -27,8 +27,17 @@ push a `main`.
 - En `server/` los imports relativos llevan sufijo `.js` (ESM + NodeNext); en
   `web/` no lo llevan (resolución de bundler). No unifiques las dos: es a
   propósito.
-- Nombres del dominio en español (`ventana`, `cubos`, `autores`, `tendencia`,
-  `concentracion`), como la maqueta; `walkHistory` conserva el nombre del spec.
+- **El código se escribe SIEMPRE en inglés.** Identificadores (variables,
+  funciones, tipos, ficheros y directorios), comentarios, nombres de test y
+  mensajes de error: todo en inglés, sin excepción y sin preguntar.
+- **Regla boy scout**: si tocas código que está en español, lo dejas en inglés
+  al pasar. No hace falta permiso ni un slice aparte; el renombrado va en el
+  mismo PR que el cambio que te trajo ahí.
+- Lo que NO es código sigue en español, y no es una excepción olvidada: el texto
+  visible de la UI y el vocabulario de producto (Pulso, Gente, Calor), la
+  maqueta de `docs/design/`, los issues, los specs, los cuerpos de PR y
+  `.agent/STATE.md`. La frontera es exacta: **si lo lee un compilador, inglés;
+  si lo lee una persona como producto o como conversación, español.**
 
 ## Project layout
 ```
