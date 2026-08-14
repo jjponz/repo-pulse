@@ -2,122 +2,122 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, beforeAll, expect, test } from 'vitest'
-import { ErrorAnalisis, leerHeadSha, leerHistorial, parsearHistorial } from './git.js'
-import { commitsSinMerges, crearRepoFixture } from '../testing/repo-fixture.js'
+import { AnalysisError, parseHistory, readHeadSha, readHistory } from './git.js'
+import { createRepoFixture, nonMergeCommits } from '../testing/repo-fixture.js'
 import type { CommitFixture, RepoFixture } from '../testing/repo-fixture.js'
 
 const COMMITS: readonly CommitFixture[] = [
-  { fecha: '2026-07-20T09:00:00+00:00', email: 'ana@example.com', ficheros: ['src/a.ts'] },
-  { fecha: '2026-07-21T09:00:00+00:00', email: 'Ana@Example.com', ficheros: ['src/b.ts'] },
-  { fecha: '2026-07-22T09:00:00+00:00', email: 'bea@example.com', ficheros: ['src/f.ts'] },
-  { fecha: '2026-08-12T09:00:00+00:00', email: 'cris@example.com', ficheros: ['src/i.ts'] },
+  { date: '2026-07-20T09:00:00+00:00', email: 'ana@example.com', files: ['src/a.ts'] },
+  { date: '2026-07-21T09:00:00+00:00', email: 'Ana@Example.com', files: ['src/b.ts'] },
+  { date: '2026-07-22T09:00:00+00:00', email: 'bea@example.com', files: ['src/f.ts'] },
+  { date: '2026-08-12T09:00:00+00:00', email: 'cris@example.com', files: ['src/i.ts'] },
 ]
 
 const MERGE: CommitFixture = {
-  fecha: '2026-08-12T10:00:00+00:00',
+  date: '2026-08-12T10:00:00+00:00',
   email: 'dani@example.com',
-  ficheros: ['src/j.ts'],
+  files: ['src/j.ts'],
 }
 
 let fixture: RepoFixture
 
 beforeAll(() => {
-  fixture = crearRepoFixture({ commits: COMMITS, merge: MERGE })
+  fixture = createRepoFixture({ commits: COMMITS, merge: MERGE })
 })
 
 afterAll(() => {
-  fixture.limpiar()
+  fixture.cleanup()
 })
 
-test('leerHistorial devuelve los commits sin merges de HEAD con el email en minúsculas', async () => {
-  const { headSha, commits } = await leerHistorial(fixture.ruta)
+test('readHistory returns the non-merge commits of HEAD with the email lowercased', async () => {
+  const { headSha, commits } = await readHistory(fixture.path)
 
   expect(headSha).toMatch(/^[0-9a-f]{40}$/)
-  expect(commits).toHaveLength(commitsSinMerges(fixture.ruta))
+  expect(commits).toHaveLength(nonMergeCommits(fixture.path))
   expect(commits).toHaveLength(5)
-  expect(new Set(commits.map((commit) => commit.autor))).toEqual(
+  expect(new Set(commits.map((commit) => commit.author))).toEqual(
     new Set(['ana@example.com', 'bea@example.com', 'cris@example.com', 'dani@example.com']),
   )
 })
 
-test('leerHistorial incluye los ficheros del commit raíz', async () => {
-  const { commits } = await leerHistorial(fixture.ruta)
+test('readHistory includes the files of the root commit', async () => {
+  const { commits } = await readHistory(fixture.path)
 
-  expect(commits.at(-1)?.ficheros).toEqual(['src/a.ts'])
+  expect(commits.at(-1)?.files).toEqual(['src/a.ts'])
 })
 
-test('leerHistorial aplica .mailmap', async () => {
-  const conMailmap = crearRepoFixture({
+test('readHistory applies .mailmap', async () => {
+  const withMailmap = createRepoFixture({
     commits: COMMITS,
     mailmap: 'Ana <ana@example.com> <bea@example.com>\n',
   })
 
   try {
-    const { commits } = await leerHistorial(conMailmap.ruta)
+    const { commits } = await readHistory(withMailmap.path)
 
-    expect(new Set(commits.map((commit) => commit.autor))).toEqual(
+    expect(new Set(commits.map((commit) => commit.author))).toEqual(
       new Set(['ana@example.com', 'cris@example.com']),
     )
   } finally {
-    conMailmap.limpiar()
+    withMailmap.cleanup()
   }
 })
 
-test('un repo git sin commits no tiene HEAD ni historial', async () => {
-  const vacio = crearRepoFixture()
+test('a git repo without commits has no HEAD and no history', async () => {
+  const empty = createRepoFixture()
 
   try {
-    expect(await leerHeadSha(vacio.ruta)).toBeNull()
-    expect(await leerHistorial(vacio.ruta)).toEqual({ headSha: null, commits: [] })
+    expect(await readHeadSha(empty.path)).toBeNull()
+    expect(await readHistory(empty.path)).toEqual({ headSha: null, commits: [] })
   } finally {
-    vacio.limpiar()
+    empty.cleanup()
   }
 })
 
-test('un repo git con HEAD corrupto falla con el código git-ha-fallado, no devuelve null', async () => {
-  const corrupto = crearRepoFixture({ commits: COMMITS })
+test('a git repo with a corrupt HEAD fails with the git-failed code, it does not return null', async () => {
+  const corrupt = createRepoFixture({ commits: COMMITS })
 
   try {
-    // 'rev-parse --verify --quiet HEAD' distingue "no hay HEAD todavía" (exit 1) de un
-    // fallo real por código de salida. Un HEAD que no apunta a una ref válida hace que
-    // git salga con 128 ("fatal: not a git repository"), no con 1: debe propagarse.
-    writeFileSync(join(corrupto.ruta, '.git', 'HEAD'), 'esto-no-es-una-ref-valida\n')
+    // 'rev-parse --verify --quiet HEAD' tells "no HEAD yet" (exit 1) from a real
+    // failure by exit code. A HEAD that does not point at a valid ref makes git
+    // exit 128 ("fatal: not a git repository"), not 1: it must propagate.
+    writeFileSync(join(corrupt.path, '.git', 'HEAD'), 'this-is-not-a-valid-ref\n')
 
-    await expect(leerHeadSha(corrupto.ruta)).rejects.toThrow(ErrorAnalisis)
-    await expect(leerHeadSha(corrupto.ruta)).rejects.toMatchObject({ codigo: 'git-ha-fallado' })
+    await expect(readHeadSha(corrupt.path)).rejects.toThrow(AnalysisError)
+    await expect(readHeadSha(corrupt.path)).rejects.toMatchObject({ code: 'git-failed' })
   } finally {
-    corrupto.limpiar()
+    corrupt.cleanup()
   }
 })
 
-test('una carpeta que no es repo git falla con el código no-es-repo-git', async () => {
-  const carpeta = mkdtempSync(join(tmpdir(), 'repo-pulse-sin-git-'))
+test('a directory that is not a git repo fails with the not-a-git-repo code', async () => {
+  const directory = mkdtempSync(join(tmpdir(), 'repo-pulse-no-git-'))
 
   try {
-    await expect(leerHistorial(carpeta)).rejects.toThrow(ErrorAnalisis)
-    await expect(leerHistorial(carpeta)).rejects.toMatchObject({ codigo: 'no-es-repo-git' })
+    await expect(readHistory(directory)).rejects.toThrow(AnalysisError)
+    await expect(readHistory(directory)).rejects.toMatchObject({ code: 'not-a-git-repo' })
   } finally {
-    rmSync(carpeta, { recursive: true, force: true })
+    rmSync(directory, { recursive: true, force: true })
   }
 })
 
-test('parsearHistorial lee el formato de git log con separadores NUL y US', () => {
-  const salida =
+test('parseHistory reads the git log format with NUL and US separators', () => {
+  const output =
     '\u0000abc\u001f2026-08-01T10:00:00Z\u001fAna@Example.com\nsrc/a.ts\n\n' +
     '\u0000def\u001f2026-07-31T10:00:00Z\u001fbea@example.com\n'
 
-  expect(parsearHistorial(salida)).toEqual([
+  expect(parseHistory(output)).toEqual([
     {
       sha: 'abc',
-      fecha: Date.parse('2026-08-01T10:00:00Z'),
-      autor: 'ana@example.com',
-      ficheros: ['src/a.ts'],
+      date: Date.parse('2026-08-01T10:00:00Z'),
+      author: 'ana@example.com',
+      files: ['src/a.ts'],
     },
     {
       sha: 'def',
-      fecha: Date.parse('2026-07-31T10:00:00Z'),
-      autor: 'bea@example.com',
-      ficheros: [],
+      date: Date.parse('2026-07-31T10:00:00Z'),
+      author: 'bea@example.com',
+      files: [],
     },
   ])
 })

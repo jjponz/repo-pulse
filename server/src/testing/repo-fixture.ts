@@ -4,12 +4,12 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 
 /**
- * Repos git de mentira en `tmp`, con fechas de autor y de commit fijadas. Los
- * tests del análisis NUNCA se ejecutan contra clones reales de la máquina.
+ * Throwaway git repos in `tmp`, with pinned author and committer dates. The
+ * analysis tests NEVER run against real clones on the machine.
  */
 
-/** Aísla la config global y de sistema: ni hooks, ni plantillas, ni firma gpg del dev. */
-const ENTORNO_AISLADO: NodeJS.ProcessEnv = {
+/** Isolates global and system config: no hooks, no templates, no dev gpg signing. */
+const ISOLATED_ENV: NodeJS.ProcessEnv = {
   ...process.env,
   GIT_CONFIG_GLOBAL: '/dev/null',
   GIT_CONFIG_SYSTEM: '/dev/null',
@@ -17,96 +17,96 @@ const ENTORNO_AISLADO: NodeJS.ProcessEnv = {
 }
 
 export interface CommitFixture {
-  /** fecha de autor y de commit, ISO 8601 con offset explícito */
-  fecha: string
-  /** email de autor tal cual, para poder probar mayúsculas y `.mailmap` */
+  /** author and committer date, ISO 8601 with an explicit offset */
+  date: string
+  /** author email verbatim, so uppercase and `.mailmap` can be exercised */
   email: string
-  /** rutas a crear en ese commit; al menos una, y con contenido distinto al anterior */
-  ficheros: readonly string[]
-  mensaje?: string
+  /** paths to create in that commit; at least one, with content different from the previous */
+  files: readonly string[]
+  message?: string
 }
 
-export interface EspecificacionFixture {
+export interface FixtureSpec {
   commits?: readonly CommitFixture[]
   /**
-   * Si viene, se crea una rama con ESE commit y se mergea a main con `--no-ff`:
-   * el commit de la rama cuenta, el commit de merge NO debe contarse.
+   * When present, a branch is created with THAT commit and merged into main with
+   * `--no-ff`: the branch commit counts, the merge commit must NOT be counted.
    */
   merge?: CommitFixture
-  /** contenido literal de `.mailmap`; se escribe al final y NO se commitea */
+  /** literal `.mailmap` content; written last and NOT committed */
   mailmap?: string
 }
 
 export interface RepoFixture {
-  ruta: string
-  limpiar(): void
+  path: string
+  cleanup(): void
 }
 
-export function crearRepoFixture(especificacion: EspecificacionFixture = {}): RepoFixture {
-  const ruta = mkdtempSync(join(tmpdir(), 'repo-pulse-fixture-'))
+export function createRepoFixture(spec: FixtureSpec = {}): RepoFixture {
+  const path = mkdtempSync(join(tmpdir(), 'repo-pulse-fixture-'))
 
   try {
-    git(ruta, ['init', '-q', '-b', 'main', '.'])
-    git(ruta, ['config', 'user.name', 'Fixture'])
-    git(ruta, ['config', 'user.email', 'fixture@example.com'])
-    git(ruta, ['config', 'commit.gpgsign', 'false'])
+    git(path, ['init', '-q', '-b', 'main', '.'])
+    git(path, ['config', 'user.name', 'Fixture'])
+    git(path, ['config', 'user.email', 'fixture@example.com'])
+    git(path, ['config', 'commit.gpgsign', 'false'])
 
-    for (const commit of especificacion.commits ?? []) escribirCommit(ruta, commit)
+    for (const commit of spec.commits ?? []) writeCommit(path, commit)
 
-    const merge = especificacion.merge
+    const merge = spec.merge
     if (merge !== undefined) {
-      git(ruta, ['checkout', '-q', '-b', 'rama-fixture'])
-      escribirCommit(ruta, merge)
-      git(ruta, ['checkout', '-q', 'main'])
-      git(ruta, ['merge', '--no-ff', '-q', 'rama-fixture', '-m', 'merge de fixture'], entornoDe(merge))
+      git(path, ['checkout', '-q', '-b', 'fixture-branch'])
+      writeCommit(path, merge)
+      git(path, ['checkout', '-q', 'main'])
+      git(path, ['merge', '--no-ff', '-q', 'fixture-branch', '-m', 'fixture merge'], envFor(merge))
     }
 
-    if (especificacion.mailmap !== undefined) {
-      writeFileSync(join(ruta, '.mailmap'), especificacion.mailmap)
+    if (spec.mailmap !== undefined) {
+      writeFileSync(join(path, '.mailmap'), spec.mailmap)
     }
   } catch (error) {
-    rmSync(ruta, { recursive: true, force: true })
+    rmSync(path, { recursive: true, force: true })
     throw error
   }
 
   return {
-    ruta,
-    limpiar: () => {
-      rmSync(ruta, { recursive: true, force: true })
+    path,
+    cleanup: () => {
+      rmSync(path, { recursive: true, force: true })
     },
   }
 }
 
-/** Commits sin merges alcanzables desde HEAD según git: el número con el que comparan los tests. */
-export function commitsSinMerges(ruta: string): number {
-  return Number(git(ruta, ['rev-list', '--no-merges', '--count', 'HEAD']).trim())
+/** Non-merge commits reachable from HEAD according to git: the number the tests compare against. */
+export function nonMergeCommits(path: string): number {
+  return Number(git(path, ['rev-list', '--no-merges', '--count', 'HEAD']).trim())
 }
 
-function escribirCommit(ruta: string, commit: CommitFixture): void {
-  for (const fichero of commit.ficheros) {
-    const destino = join(ruta, fichero)
-    mkdirSync(dirname(destino), { recursive: true })
-    writeFileSync(destino, `${commit.fecha} ${fichero}\n`)
+function writeCommit(path: string, commit: CommitFixture): void {
+  for (const file of commit.files) {
+    const target = join(path, file)
+    mkdirSync(dirname(target), { recursive: true })
+    writeFileSync(target, `${commit.date} ${file}\n`)
   }
-  git(ruta, ['add', '-A'])
-  git(ruta, ['commit', '-q', '-m', commit.mensaje ?? `commit ${commit.fecha}`], entornoDe(commit))
+  git(path, ['add', '-A'])
+  git(path, ['commit', '-q', '-m', commit.message ?? `commit ${commit.date}`], envFor(commit))
 }
 
-function entornoDe(commit: CommitFixture): NodeJS.ProcessEnv {
+function envFor(commit: CommitFixture): NodeJS.ProcessEnv {
   return {
-    GIT_AUTHOR_DATE: commit.fecha,
-    GIT_COMMITTER_DATE: commit.fecha,
-    GIT_AUTHOR_NAME: 'Autor Fixture',
+    GIT_AUTHOR_DATE: commit.date,
+    GIT_COMMITTER_DATE: commit.date,
+    GIT_AUTHOR_NAME: 'Fixture Author',
     GIT_AUTHOR_EMAIL: commit.email,
     GIT_COMMITTER_NAME: 'Fixture',
     GIT_COMMITTER_EMAIL: 'fixture@example.com',
   }
 }
 
-function git(ruta: string, args: readonly string[], entorno: NodeJS.ProcessEnv = {}): string {
-  return execFileSync('git', ['-C', ruta, ...args], {
+function git(path: string, args: readonly string[], env: NodeJS.ProcessEnv = {}): string {
+  return execFileSync('git', ['-C', path, ...args], {
     encoding: 'utf8',
-    env: { ...ENTORNO_AISLADO, ...entorno },
+    env: { ...ISOLATED_ENV, ...env },
     stdio: ['ignore', 'pipe', 'pipe'],
   })
 }

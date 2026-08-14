@@ -1,42 +1,42 @@
-import { agregar } from './agregado.js'
-import { leerHistorial } from './git.js'
-import type { Analisis, Ventana } from './tipos.js'
+import { aggregate } from './aggregate.js'
+import { readHistory } from './git.js'
+import type { Analysis, TimeWindow } from './types.js'
 
-export interface OpcionesWalkHistory {
-  /** instante de referencia de la ventana; por defecto, el momento de la llamada */
-  ahora?: Date
+export interface WalkHistoryOptions {
+  /** reference instant of the window; defaults to the moment of the call */
+  now?: Date
 }
 
 /**
- * Recorre el historial de HEAD del clon `repo` y devuelve el análisis de la
- * ventana pedida: cubos de commits, serie de autores por cubo, tendencia frente
- * a la ventana anterior, KPIs y concentración de autoría.
+ * Walks the HEAD history of the `repo` clone and returns the analysis of the
+ * requested window: commit buckets, authors per bucket, trend against the
+ * previous window, KPIs and authorship concentration.
  *
- * Es el único punto de entrada del módulo, y el módulo es el único código del
- * repo que ejecuta git. Ningún nombre ni email de autor sale de aquí.
+ * It is the module's only entry point, and the module is the only code in the
+ * repo that runs git. No author name or email gets out of here.
  */
 export async function walkHistory(
   repo: string,
-  ventana: Ventana,
-  opciones: OpcionesWalkHistory = {},
-): Promise<Analisis> {
-  const ahora = (opciones.ahora ?? new Date()).getTime()
-  const { headSha, commits } = await leerHistorial(repo)
-  return { ...agregar(ventana, commits, ahora), headSha }
+  window: TimeWindow,
+  options: WalkHistoryOptions = {},
+): Promise<Analysis> {
+  const now = (options.now ?? new Date()).getTime()
+  const { headSha, commits } = await readHistory(repo)
+  return { ...aggregate(window, commits, now), headSha }
 }
 
-export { ErrorAnalisis, leerHeadSha } from './git.js'
-// `Historial` NO se exporta a propósito: lleva `Commit[]`, y un `Commit` lleva
-// el email del autor. Ese tipo muere en el módulo, como el dato.
-export type { CodigoErrorAnalisis } from './git.js'
-export { VENTANAS, VENTANA_POR_DEFECTO, esVentana } from './ventanas.js'
+export { AnalysisError, readHeadSha } from './git.js'
+// `History` is deliberately NOT exported: it carries `Commit[]`, and a `Commit`
+// carries the author email. That type dies in the module, like the data.
+export type { AnalysisErrorCode } from './git.js'
+export { WINDOWS, DEFAULT_WINDOW, isTimeWindow } from './windows.js'
 export type {
-  Analisis,
-  Concentracion,
-  Cubo,
+  Analysis,
+  Bucket,
+  BucketSize,
+  Concentration,
   Kpis,
-  MotivoNoComparable,
-  TamanoCubo,
-  Tendencia,
-  Ventana,
-} from './tipos.js'
+  NotComparableReason,
+  TimeWindow,
+  Trend,
+} from './types.js'

@@ -2,68 +2,68 @@ import { execFileSync } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { afterEach, expect, test } from 'vitest'
-import { commitsSinMerges, crearRepoFixture } from './repo-fixture.js'
+import { createRepoFixture, nonMergeCommits } from './repo-fixture.js'
 import type { RepoFixture } from './repo-fixture.js'
 
 let fixture: RepoFixture | null = null
 
 afterEach(() => {
-  fixture?.limpiar()
+  fixture?.cleanup()
   fixture = null
 })
 
-test('crearRepoFixture crea un repo git con los commits pedidos y el merge no cuenta', () => {
-  fixture = crearRepoFixture({
+test('createRepoFixture creates a git repo with the requested commits and the merge does not count', () => {
+  fixture = createRepoFixture({
     commits: [
-      { fecha: '2026-07-20T09:00:00+00:00', email: 'ana@example.com', ficheros: ['src/a.ts'] },
-      { fecha: '2026-07-21T09:00:00+00:00', email: 'bea@example.com', ficheros: ['src/b.ts'] },
+      { date: '2026-07-20T09:00:00+00:00', email: 'ana@example.com', files: ['src/a.ts'] },
+      { date: '2026-07-21T09:00:00+00:00', email: 'bea@example.com', files: ['src/b.ts'] },
     ],
-    merge: { fecha: '2026-07-22T09:00:00+00:00', email: 'cris@example.com', ficheros: ['src/c.ts'] },
+    merge: { date: '2026-07-22T09:00:00+00:00', email: 'cris@example.com', files: ['src/c.ts'] },
   })
 
-  expect(existsSync(join(fixture.ruta, '.git'))).toBe(true)
-  expect(commitsSinMerges(fixture.ruta)).toBe(3)
+  expect(existsSync(join(fixture.path, '.git'))).toBe(true)
+  expect(nonMergeCommits(fixture.path)).toBe(3)
 })
 
-test('crearRepoFixture fija la fecha de autor y de commit a la pedida en cada CommitFixture', () => {
+test('createRepoFixture pins the author and committer date to the one requested in each CommitFixture', () => {
   const commits = [
-    { fecha: '2026-07-20T09:00:00+00:00', email: 'ana@example.com', ficheros: ['src/a.ts'] },
-    { fecha: '2026-07-21T15:30:00+02:00', email: 'bea@example.com', ficheros: ['src/b.ts'] },
+    { date: '2026-07-20T09:00:00+00:00', email: 'ana@example.com', files: ['src/a.ts'] },
+    { date: '2026-07-21T15:30:00+02:00', email: 'bea@example.com', files: ['src/b.ts'] },
   ]
-  fixture = crearRepoFixture({ commits })
+  fixture = createRepoFixture({ commits })
 
-  // git no exporta un runner propio: leemos las fechas con git directamente.
-  const salida = execFileSync('git', ['-C', fixture.ruta, 'log', '--pretty=format:%aI%x09%cI'], {
+  // git ships no runner of its own: we read the dates with git directly.
+  const output = execFileSync('git', ['-C', fixture.path, 'log', '--pretty=format:%aI%x09%cI'], {
     encoding: 'utf8',
   })
-  const lineas = salida.trim().split('\n')
-  expect(lineas).toHaveLength(commits.length)
+  const lines = output.trim().split('\n')
+  expect(lines).toHaveLength(commits.length)
 
-  // %aI normaliza el offset (p.ej. '+00:00' vuelve como 'Z'): comparamos
-  // instantes, no strings. El orden de `git log` no importa: comparamos
-  // los conjuntos de instantes ordenados.
-  const instantesEsperados = commits.map((commit) => Date.parse(commit.fecha)).sort()
-  const instantesAutor = lineas.map((linea) => Date.parse(linea.split('\t')[0] ?? '')).sort()
-  const instantesCommitter = lineas.map((linea) => Date.parse(linea.split('\t')[1] ?? '')).sort()
+  // %aI normalises the offset (e.g. '+00:00' comes back as 'Z'): we compare
+  // instants, not strings. The order of `git log` does not matter: we compare
+  // the sorted sets of instants.
+  const expectedInstants = commits.map((commit) => Date.parse(commit.date)).sort()
+  const authorInstants = lines.map((line) => Date.parse(line.split('\t')[0] ?? '')).sort()
+  const committerInstants = lines.map((line) => Date.parse(line.split('\t')[1] ?? '')).sort()
 
-  expect(instantesAutor).toEqual(instantesEsperados)
-  expect(instantesCommitter).toEqual(instantesEsperados)
+  expect(authorInstants).toEqual(expectedInstants)
+  expect(committerInstants).toEqual(expectedInstants)
 })
 
-test('crearRepoFixture sin commits deja un repo git vacío', () => {
-  fixture = crearRepoFixture()
+test('createRepoFixture without commits leaves an empty git repo', () => {
+  fixture = createRepoFixture()
 
-  expect(existsSync(join(fixture.ruta, '.git'))).toBe(true)
-  expect(existsSync(join(fixture.ruta, 'src'))).toBe(false)
+  expect(existsSync(join(fixture.path, '.git'))).toBe(true)
+  expect(existsSync(join(fixture.path, 'src'))).toBe(false)
 })
 
-test('limpiar borra el directorio del fixture', () => {
-  const creado = crearRepoFixture({
-    commits: [{ fecha: '2026-07-20T09:00:00+00:00', email: 'ana@example.com', ficheros: ['a.txt'] }],
+test('cleanup removes the fixture directory', () => {
+  const created = createRepoFixture({
+    commits: [{ date: '2026-07-20T09:00:00+00:00', email: 'ana@example.com', files: ['a.txt'] }],
   })
-  const ruta = creado.ruta
+  const path = created.path
 
-  creado.limpiar()
+  created.cleanup()
 
-  expect(existsSync(ruta)).toBe(false)
+  expect(existsSync(path)).toBe(false)
 })

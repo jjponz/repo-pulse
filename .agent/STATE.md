@@ -19,8 +19,8 @@ base: main
 # actualización de STATE.md no te vuelve a dejar atrás.
 last_commit: ""
 github_issue: null
-you_are_here: "Slices #1 y #2 cerrados y cosechados: #1 por PR #8 en squash (9824d3d) y #2 por PR #10 en squash (46a52c0, mergeado el 2026-08-14 a las 10:42, CI en verde y frontera respetada). De #2 ya no queda residuo: .worktrees/2 borrado, rama local feat/2 borrada. Cap 0/1 LIBRE; #3–#7 en status:backlog. El #3 (análisis: calor) es el siguiente en orden §9 y su única dependencia (#2) está mergeada; el #4 (API HTTP) depende de #2 y #3, así que todavía no es candidato."
-next_action: "Despachar el #3 (análisis: calor) con /ct-next y el env de los gotchas; luego atender su gate plan (que NO despierta al agente solo: hay que empujarlo por cmux)"
+you_are_here: "Slices #1 y #2 cerrados y cosechados (PR #8 → 9824d3d, PR #10 → 46a52c0). Slice #3 (análisis: calor) DESPACHADO el 2026-08-14 en .worktrees/3 sobre feat/3, cmux workspace:4, arranque verificado por centinela; ya publicó su plan y está PARADO en el gate plan. Ojo: su claim quedó huérfano en el primer intento (una corrida interrumpida reclamó el issue sin crear el worktree) y hubo que arreglarlo con --requeue antes de redespachar. Además, con el plan ya escrito llegó la regla nueva de código en inglés, así que ese plan hay que revisarlo contra ella. Cap 1/1 ocupado; #4–#7 en status:backlog."
+next_action: "Revisar el plan del #3 en su issue —comprobando que cumple la regla de inglés y que planifica contra la API YA renombrada— y, al dar el OK, empujar al agente por cmux (workspace:4); responder en GitHub no lo despierta"
 # blocked: null = NO bloqueado. Si el trabajo no puede continuar (una decisión
 # lo paró, el plan resultó falso, falta algo de fuera), NO lo escribas en prosa
 # dentro de next_action: ponlo aquí. El hook de SessionStart lo anuncia al
@@ -36,15 +36,26 @@ tasks: []
 ## Current State
 Epic groomeado (milestone + issues #1–#7 + labels + Project v2). Dos slices
 entregados: #1 (esqueleto: monorepo npm workspaces con CI) y #2 (análisis:
-pulso y gente, `server/src/analysis/` — walkHistory, leerHeadSha, ruido.ts y
-los tipos que consumirán Calor y la API). Ambos cosechados. Ningún agente en
-vuelo: el cap está libre (0/1). #3–#7 en status:backlog.
+pulso y gente, `server/src/analysis/` — walkHistory, readHeadSha, noise.ts y
+los tipos que consumirán Calor y la API; renombrado a inglés después, ver
+Decisions). Ambos cosechados. #3 (análisis: calor) EN VUELO desde el 2026-08-14
+en .worktrees/3 sobre feat/3 (cmux workspace:4): publicó su plan y está parado
+en el gate plan. Cap 1/1 ocupado; #4–#7 en status:backlog.
 ## Immediate Next Steps
 1. Despachar el #3 (análisis: calor) con /ct-next.
 2. Verificar por cmux que el agente arrancó de verdad, no solo la ventana.
 3. Atender su gate plan: revisar el plan en el issue, responder OK y EMPUJARLO
    a mano por cmux (responder en GitHub no lo despierta).
 ## Decisions Made
+- TODO EL CÓDIGO SE ESCRIBE EN INGLÉS (decisión del 2026-08-14). Identificadores,
+  ficheros, comentarios, nombres de test y mensajes de error; regla boy scout
+  para lo que quede en español. Lo que NO es código sigue en español: texto
+  visible de la UI y vocabulario de producto (Pulso, Gente, Calor), la maqueta,
+  issues, specs, cuerpos de PR y este fichero. La regla vive en AGENTS.md
+  ("Code style & conventions"), que hasta hoy ordenaba lo contrario. Con ella se
+  renombró entero `server/src/analysis/` (ver el gotcha del mapa de nombres): se
+  hizo AHORA porque el módulo no tenía todavía ningún consumidor, y el #3 y el
+  #4 lo iban a fijar.
 - Slice #2 cerrado el 2026-08-14 sin gate apply: su issue no lleva la label
   `gate:apply` (solo `gate:plan`, cerrado el 13), y el slice no toca ningún
   entorno real. La evidencia del merge fue `ci pass` en el PR #10, `Closes #2`
@@ -61,6 +72,30 @@ vuelo: el cap está libre (0/1). #3–#7 en status:backlog.
   en verde del PR más la cadena npm ci/build/test/lint corrida en local sobre un
   checkout limpio.
 ## Gotchas/Constraints
+- MAPA DE NOMBRES del renombrado a inglés de `server/src/analysis/` — lo que un
+  slice posterior busque por el nombre viejo NO lo va a encontrar:
+  ficheros `tipos→types`, `ruido→noise`, `ventanas→windows`, `agregado→aggregate`
+  (`git.ts` e `index.ts` no cambian de nombre);
+  API `Ventana→TimeWindow` (no `Window`: choca con el global del DOM),
+  `TamanoCubo→BucketSize`, `Cubo→Bucket`, `Analisis→Analysis`,
+  `Tendencia→Trend`, `Concentracion→Concentration`,
+  `MotivoNoComparable→NotComparableReason`, `ErrorAnalisis→AnalysisError`,
+  `CodigoErrorAnalisis→AnalysisErrorCode`, `VENTANAS→WINDOWS`,
+  `VENTANA_POR_DEFECTO→DEFAULT_WINDOW`, `esVentana→isTimeWindow`,
+  `leerHeadSha→readHeadSha`, `esRuido→isNoise`, `agregar→aggregate`,
+  `rejilla()→buildGrid()` (la función se separa del tipo `Grid`),
+  `indiceCubo→bucketIndex`, `cubosVentanaAnterior→previousWindowBuckets`;
+  fixture `crearRepoFixture→createRepoFixture`,
+  `commitsSinMerges→nonMergeCommits`, `.ruta→.path`, `.limpiar()→.cleanup()`.
+  `walkHistory` no cambia. También cambiaron VALORES del payload:
+  `'dia'|'semana'|'mes'→'day'|'week'|'month'`,
+  `'ventana-completa'→'full-window'`, `'sin-commits-previos'→'no-previous-commits'`,
+  `'no-es-repo-git'→'not-a-git-repo'`, `'git-ha-fallado'→'git-failed'`.
+- `git.ts` y `git.test.ts` llevan `'\u0000'` y `'\u001f'` (separadores de
+  `git log`) ESCRITOS COMO ESCAPES a propósito. Un editor —o un agente— que los
+  sustituya por los caracteres de control literales no rompe los tests (el valor
+  es el mismo), pero deja bytes NUL invisibles en el fuente y git puede tratar el
+  fichero como binario. Si un diff sale raro ahí, es esto.
 - `/ct-next` en este repo necesita `CT_ACCOUNT_PERSONAL_DIR=$HOME/.claude` y
   `CT_AGENT_BIN_PERSONAL=claude`: no existen ni `~/.claude-personal` ni el
   binario `claude-personal`.

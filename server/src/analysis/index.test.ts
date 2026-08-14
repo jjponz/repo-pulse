@@ -1,148 +1,148 @@
 import { afterAll, beforeAll, expect, test } from 'vitest'
-import { VENTANAS, walkHistory } from './index.js'
-import { commitsSinMerges, crearRepoFixture } from '../testing/repo-fixture.js'
+import { WINDOWS, walkHistory } from './index.js'
+import { createRepoFixture, nonMergeCommits } from '../testing/repo-fixture.js'
 import type { CommitFixture, RepoFixture } from '../testing/repo-fixture.js'
 
-/** Instante de referencia fijo: las fechas del fixture son conocidas y no caducan. */
-const AHORA = new Date('2026-08-13T12:00:00.000Z')
+/** Fixed reference instant: the fixture dates are known and do not expire. */
+const NOW = new Date('2026-08-13T12:00:00.000Z')
 
 /**
- * 9 commits en main + 1 en la rama que se mergea = 10 commits sin merges, todos
- * dentro de los últimos 30 días de AHORA. Reparto por autor: ana 5 (dos de ellos
- * con el email en mayúsculas), bea 3, cris 1, dani 1.
+ * 9 commits on main + 1 on the branch that gets merged = 10 non-merge commits,
+ * all within the last 30 days of NOW. Split by author: ana 5 (two of them with
+ * the email in uppercase), bea 3, cris 1, dani 1.
  */
 const COMMITS: readonly CommitFixture[] = [
-  { fecha: '2026-07-20T09:00:00+00:00', email: 'ana@example.com', ficheros: ['src/a.ts'] },
-  { fecha: '2026-07-21T09:00:00+00:00', email: 'Ana@Example.com', ficheros: ['src/b.ts'] },
-  { fecha: '2026-07-22T09:00:00+00:00', email: 'bea@example.com', ficheros: ['src/f.ts'] },
+  { date: '2026-07-20T09:00:00+00:00', email: 'ana@example.com', files: ['src/a.ts'] },
+  { date: '2026-07-21T09:00:00+00:00', email: 'Ana@Example.com', files: ['src/b.ts'] },
+  { date: '2026-07-22T09:00:00+00:00', email: 'bea@example.com', files: ['src/f.ts'] },
   {
-    fecha: '2026-07-28T09:00:00+00:00',
+    date: '2026-07-28T09:00:00+00:00',
     email: 'ana@example.com',
-    ficheros: ['src/c.ts', 'package-lock.json'],
+    files: ['src/c.ts', 'package-lock.json'],
   },
   {
-    fecha: '2026-08-03T09:00:00+00:00',
+    date: '2026-08-03T09:00:00+00:00',
     email: 'Ana@Example.com',
-    ficheros: ['src/d.ts', 'dist/bundle.js'],
+    files: ['src/d.ts', 'dist/bundle.js'],
   },
-  { fecha: '2026-08-04T09:00:00+00:00', email: 'bea@example.com', ficheros: ['src/g.ts'] },
-  { fecha: '2026-08-10T09:00:00+00:00', email: 'ana@example.com', ficheros: ['src/e.ts'] },
+  { date: '2026-08-04T09:00:00+00:00', email: 'bea@example.com', files: ['src/g.ts'] },
+  { date: '2026-08-10T09:00:00+00:00', email: 'ana@example.com', files: ['src/e.ts'] },
   {
-    fecha: '2026-08-11T09:00:00+00:00',
+    date: '2026-08-11T09:00:00+00:00',
     email: 'bea@example.com',
-    ficheros: ['src/h.ts', 'web/app.min.js'],
+    files: ['src/h.ts', 'web/app.min.js'],
   },
-  { fecha: '2026-08-12T09:00:00+00:00', email: 'cris@example.com', ficheros: ['src/i.ts'] },
+  { date: '2026-08-12T09:00:00+00:00', email: 'cris@example.com', files: ['src/i.ts'] },
 ]
 
 const MERGE: CommitFixture = {
-  fecha: '2026-08-12T10:00:00+00:00',
+  date: '2026-08-12T10:00:00+00:00',
   email: 'dani@example.com',
-  ficheros: ['src/j.ts'],
+  files: ['src/j.ts'],
 }
 
 let fixture: RepoFixture
 
 beforeAll(() => {
-  fixture = crearRepoFixture({ commits: COMMITS, merge: MERGE })
+  fixture = createRepoFixture({ commits: COMMITS, merge: MERGE })
 })
 
 afterAll(() => {
-  fixture.limpiar()
+  fixture.cleanup()
 })
 
-test('con un fixture de fechas conocidas los cubos suman el total de commits sin merges', async () => {
-  const total = commitsSinMerges(fixture.ruta)
+test('with a fixture of known dates the buckets add up to the total of non-merge commits', async () => {
+  const total = nonMergeCommits(fixture.path)
   expect(total).toBe(10)
 
-  const sumas: Record<string, number> = {}
-  for (const ventana of VENTANAS) {
-    const analisis = await walkHistory(fixture.ruta, ventana, { ahora: AHORA })
-    sumas[ventana] = analisis.cubos.reduce((acumulado, cubo) => acumulado + cubo.commits, 0)
-    expect(analisis.kpis.commits).toBe(total)
+  const sums: Record<string, number> = {}
+  for (const window of WINDOWS) {
+    const analysis = await walkHistory(fixture.path, window, { now: NOW })
+    sums[window] = analysis.buckets.reduce((accumulated, bucket) => accumulated + bucket.commits, 0)
+    expect(analysis.kpis.commits).toBe(total)
   }
 
-  expect(sumas).toEqual({ '30d': total, '90d': total, '12m': total, all: total })
+  expect(sums).toEqual({ '30d': total, '90d': total, '12m': total, all: total })
 })
 
-test('dos emails del mismo autor que difieren en mayúsculas cuentan como un autor', async () => {
-  const analisis = await walkHistory(fixture.ruta, '30d', { ahora: AHORA })
+test('two emails of the same author differing in case count as one author', async () => {
+  const analysis = await walkHistory(fixture.path, '30d', { now: NOW })
 
-  // ana@example.com firma 3 commits y Ana@Example.com otros 2: es un solo autor,
-  // así que los autores activos son 4 (ana, bea, cris, dani) y no 5.
-  expect(analisis.kpis.autoresActivos).toBe(4)
-  expect(analisis.concentracion.autores).toBe(2)
+  // ana@example.com signs 3 commits and Ana@Example.com another 2: it is a
+  // single author, so active authors are 4 (ana, bea, cris, dani) and not 5.
+  expect(analysis.kpis.activeAuthors).toBe(4)
+  expect(analysis.concentration.authors).toBe(2)
 })
 
-test('en ventana `all` la tendencia es null y se declara no comparable', async () => {
-  const analisis = await walkHistory(fixture.ruta, 'all', { ahora: AHORA })
+test('on the `all` window the trend is null and declared not comparable', async () => {
+  const analysis = await walkHistory(fixture.path, 'all', { now: NOW })
 
-  expect(analisis.tendencia).toEqual({
+  expect(analysis.trend).toEqual({
     comparable: false,
-    porcentaje: null,
-    commitsVentanaAnterior: null,
-    motivo: 'ventana-completa',
+    percentage: null,
+    previousWindowCommits: null,
+    reason: 'full-window',
   })
-  expect(analisis.cubosVentanaAnterior).toBeNull()
+  expect(analysis.previousWindowBuckets).toBeNull()
 })
 
-test('la concentración es el mínimo nº de autores que suma el 80% o más', async () => {
-  const analisis = await walkHistory(fixture.ruta, '12m', { ahora: AHORA })
+test('concentration is the minimum number of authors adding up to 80% or more', async () => {
+  const analysis = await walkHistory(fixture.path, '12m', { now: NOW })
 
-  // 5 + 3 de 10 commits = exactamente el 80%: dos autores, y con uno no llega.
-  expect(analisis.concentracion).toEqual({ autores: 2, porcentaje: 80 })
+  // 5 + 3 out of 10 commits = exactly 80%: two authors, and one is not enough.
+  expect(analysis.concentration).toEqual({ authors: 2, percentage: 80 })
 })
 
-test('el análisis no expone ningún email de autor', async () => {
-  const analisis = await walkHistory(fixture.ruta, '12m', { ahora: AHORA })
+test('the analysis exposes no author email', async () => {
+  const analysis = await walkHistory(fixture.path, '12m', { now: NOW })
 
-  expect(JSON.stringify(analisis)).not.toContain('@')
+  expect(JSON.stringify(analysis)).not.toContain('@')
 })
 
-test('la tendencia se cuenta contra la ventana anterior de igual longitud', async () => {
-  const conPrevias = crearRepoFixture({
+test('the trend is counted against the equally long previous window', async () => {
+  const withPrevious = createRepoFixture({
     commits: [
-      { fecha: '2026-07-01T09:00:00+00:00', email: 'ana@example.com', ficheros: ['viejo-1.txt'] },
-      { fecha: '2026-07-02T09:00:00+00:00', email: 'ana@example.com', ficheros: ['viejo-2.txt'] },
-      { fecha: '2026-08-01T09:00:00+00:00', email: 'ana@example.com', ficheros: ['nuevo-1.txt'] },
-      { fecha: '2026-08-02T09:00:00+00:00', email: 'bea@example.com', ficheros: ['nuevo-2.txt'] },
-      { fecha: '2026-08-03T09:00:00+00:00', email: 'bea@example.com', ficheros: ['nuevo-3.txt'] },
+      { date: '2026-07-01T09:00:00+00:00', email: 'ana@example.com', files: ['old-1.txt'] },
+      { date: '2026-07-02T09:00:00+00:00', email: 'ana@example.com', files: ['old-2.txt'] },
+      { date: '2026-08-01T09:00:00+00:00', email: 'ana@example.com', files: ['new-1.txt'] },
+      { date: '2026-08-02T09:00:00+00:00', email: 'bea@example.com', files: ['new-2.txt'] },
+      { date: '2026-08-03T09:00:00+00:00', email: 'bea@example.com', files: ['new-3.txt'] },
     ],
   })
 
   try {
-    const analisis = await walkHistory(conPrevias.ruta, '30d', { ahora: AHORA })
+    const analysis = await walkHistory(withPrevious.path, '30d', { now: NOW })
 
-    expect(analisis.tendencia).toEqual({
+    expect(analysis.trend).toEqual({
       comparable: true,
-      porcentaje: 50,
-      commitsVentanaAnterior: 2,
-      motivo: null,
+      percentage: 50,
+      previousWindowCommits: 2,
+      reason: null,
     })
   } finally {
-    conPrevias.limpiar()
+    withPrevious.cleanup()
   }
 })
 
-test('un repo sin commits devuelve la ventana a cero y sin HEAD', async () => {
-  const vacio = crearRepoFixture()
+test('a repo without commits returns the window at zero and without HEAD', async () => {
+  const empty = createRepoFixture()
 
   try {
-    const analisis = await walkHistory(vacio.ruta, '30d', { ahora: AHORA })
+    const analysis = await walkHistory(empty.path, '30d', { now: NOW })
 
-    expect(analisis.headSha).toBeNull()
-    expect(analisis.cubos).toHaveLength(30)
-    expect(analisis.kpis).toEqual({ commits: 0, autoresActivos: 0, ficherosTocados: 0 })
-    expect(analisis.concentracion).toEqual({ autores: 0, porcentaje: 0 })
+    expect(analysis.headSha).toBeNull()
+    expect(analysis.buckets).toHaveLength(30)
+    expect(analysis.kpis).toEqual({ commits: 0, activeAuthors: 0, filesTouched: 0 })
+    expect(analysis.concentration).toEqual({ authors: 0, percentage: 0 })
   } finally {
-    vacio.limpiar()
+    empty.cleanup()
   }
 })
 
-test('el KPI de ficheros tocados ignora lockfiles, bundles y rutas generadas', async () => {
-  const analisis = await walkHistory(fixture.ruta, '12m', { ahora: AHORA })
+test('the touched-files KPI ignores lockfiles, bundles and generated paths', async () => {
+  const analysis = await walkHistory(fixture.path, '12m', { now: NOW })
 
-  // 10 ficheros de src/ tocados; package-lock.json, dist/bundle.js y
-  // web/app.min.js no cuentan.
-  expect(analisis.kpis.ficherosTocados).toBe(10)
+  // 10 files under src/ touched; package-lock.json, dist/bundle.js and
+  // web/app.min.js do not count.
+  expect(analysis.kpis.filesTouched).toBe(10)
 })
