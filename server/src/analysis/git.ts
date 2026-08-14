@@ -79,6 +79,21 @@ export async function readHeadSha(repo: string): Promise<string | null> {
 }
 
 /**
+ * Author date of the newest non-merge commit reachable from HEAD, in ISO 8601
+ * ('%aI'), or null when the repo has no commits: the "last commit" date the API
+ * shows per clone, without walking the whole history. Like `readHistory`, it
+ * short-circuits on "no HEAD" instead of letting the `log` failure (exit 128)
+ * escape.
+ */
+export async function readLastCommitAt(repo: string): Promise<string | null> {
+  const headSha = await readHeadSha(repo)
+  if (headSha === null) return null
+  const output = (await git(repo, ['log', '-1', '--no-merges', '--format=%aI', 'HEAD'])).trim()
+  // A history of nothing but merges reports no date, and that is not a failure.
+  return output === '' ? null : output
+}
+
+/**
  * Every directory of the HEAD tree, relative to `repo`, recursive. Used to
  * auto-detect the main folder and to validate a saved one: like `readHistory`,
  * it short-circuits on "no HEAD" instead of letting the `ls-tree` failure
