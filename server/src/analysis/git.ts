@@ -36,11 +36,14 @@ export type CodigoErrorAnalisis = 'no-es-repo-git' | 'git-ha-fallado'
 
 export class ErrorAnalisis extends Error {
   readonly codigo: CodigoErrorAnalisis
+  /** Código de salida del proceso git que originó el fallo, o null si no viene de un proceso (p.ej. el binario no existe). */
+  readonly codigoSalida: number | null
 
-  constructor(codigo: CodigoErrorAnalisis, mensaje: string) {
+  constructor(codigo: CodigoErrorAnalisis, mensaje: string, codigoSalida: number | null = null) {
     super(mensaje)
     this.name = 'ErrorAnalisis'
     this.codigo = codigo
+    this.codigoSalida = codigoSalida
   }
 }
 
@@ -64,10 +67,14 @@ export async function leerHistorial(repo: string): Promise<Historial> {
 export async function leerHeadSha(repo: string): Promise<string | null> {
   asegurarRepoGit(repo)
   try {
-    return (await git(repo, ['rev-parse', 'HEAD'])).trim()
-  } catch {
-    // Un repo git recién inicializado no tiene HEAD todavía: no es un fallo.
-    return null
+    // '--verify --quiet' distingue por código de salida "no hay HEAD todavía" (1)
+    // de un fallo real (128 u otro): con el 'rev-parse HEAD' a secas ambos casos
+    // salían con 128 y eran indistinguibles.
+    return (await git(repo, ['rev-parse', '--verify', '--quiet', 'HEAD'])).trim()
+  } catch (error) {
+    // Un repo git recién inicializado no tiene HEAD todavía (exit 1): no es un fallo.
+    if (error instanceof ErrorAnalisis && error.codigoSalida === 1) return null
+    throw error
   }
 }
 
@@ -108,6 +115,17 @@ async function git(repo: string, args: readonly string[]): Promise<string> {
     throw new ErrorAnalisis(
       'git-ha-fallado',
       `git ${args.join(' ')} ha fallado en ${repo}: ${String(error)}`,
+      codigoSalidaDe(error),
     )
   }
+}
+
+/**
+ * El rechazo de `execFile` expone el código de salida en `.code`: un número si el
+ * proceso llegó a terminar, o un string (p.ej. 'ENOENT') si ni siquiera arrancó.
+ */
+function codigoSalidaDe(error: unknown): number | null {
+  if (typeof error !== 'object' || error === null || !('code' in error)) return null
+  const { code } = error
+  return typeof code === 'number' ? code : null
 }

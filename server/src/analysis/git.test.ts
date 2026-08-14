@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from 'node:fs'
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, beforeAll, expect, test } from 'vitest'
@@ -71,6 +71,22 @@ test('un repo git sin commits no tiene HEAD ni historial', async () => {
     expect(await leerHistorial(vacio.ruta)).toEqual({ headSha: null, commits: [] })
   } finally {
     vacio.limpiar()
+  }
+})
+
+test('un repo git con HEAD corrupto falla con el código git-ha-fallado, no devuelve null', async () => {
+  const corrupto = crearRepoFixture({ commits: COMMITS })
+
+  try {
+    // 'rev-parse --verify --quiet HEAD' distingue "no hay HEAD todavía" (exit 1) de un
+    // fallo real por código de salida. Un HEAD que no apunta a una ref válida hace que
+    // git salga con 128 ("fatal: not a git repository"), no con 1: debe propagarse.
+    writeFileSync(join(corrupto.ruta, '.git', 'HEAD'), 'esto-no-es-una-ref-valida\n')
+
+    await expect(leerHeadSha(corrupto.ruta)).rejects.toThrow(ErrorAnalisis)
+    await expect(leerHeadSha(corrupto.ruta)).rejects.toMatchObject({ codigo: 'git-ha-fallado' })
+  } finally {
+    corrupto.limpiar()
   }
 })
 
