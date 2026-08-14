@@ -78,6 +78,19 @@ export async function readHeadSha(repo: string): Promise<string | null> {
   }
 }
 
+/**
+ * Every directory of the HEAD tree, relative to `repo`, recursive. Used to
+ * auto-detect the main folder and to validate a saved one: like `readHistory`,
+ * it short-circuits on "no HEAD" instead of letting the `ls-tree` failure
+ * (exit 128) escape.
+ */
+export async function readDirectories(repo: string): Promise<string[]> {
+  const headSha = await readHeadSha(repo)
+  if (headSha === null) return []
+  const output = await git(repo, ['ls-tree', '-d', '-r', '--name-only', '-z', 'HEAD'])
+  return output.split(RECORD_SEPARATOR).filter((line) => line !== '')
+}
+
 export function parseHistory(output: string): Commit[] {
   const commits: Commit[] = []
   for (const record of output.split(RECORD_SEPARATOR)) {

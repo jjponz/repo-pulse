@@ -1,0 +1,146 @@
+import { afterEach, expect, test } from 'vitest'
+import { heatTree } from './heat.js'
+import { walkHistory } from './index.js'
+import { createRepoFixture } from '../testing/repo-fixture.js'
+import type { RepoFixture } from '../testing/repo-fixture.js'
+
+/** Fixed reference instant: the fixture dates are known and do not expire. */
+const NOW = new Date('2026-08-13T12:00:00.000Z')
+
+let fixture: RepoFixture | null = null
+
+afterEach(() => {
+  fixture?.cleanup()
+  fixture = null
+})
+
+test('percent is over the main folder total', async () => {
+  // 4 commits under src/ (checkout: 1, cart: 2, utils: 1) and 6 outside it:
+  // 10 non-merge commits in total. `checkout` is touched by a single commit,
+  // so its percent must be over the 4 of the main folder (25), not the 10 of
+  // the whole repo.
+  fixture = createRepoFixture({
+    commits: [
+      { date: '2026-07-20T09:00:00+00:00', email: 'ana@example.com', files: ['src/checkout/pay.ts'] },
+      { date: '2026-07-21T09:00:00+00:00', email: 'ana@example.com', files: ['src/cart/add.ts'] },
+      { date: '2026-07-22T09:00:00+00:00', email: 'bea@example.com', files: ['src/cart/remove.ts'] },
+      { date: '2026-07-23T09:00:00+00:00', email: 'bea@example.com', files: ['src/utils/format.ts'] },
+      { date: '2026-07-24T09:00:00+00:00', email: 'ana@example.com', files: ['README.md'] },
+      { date: '2026-07-25T09:00:00+00:00', email: 'ana@example.com', files: ['lib/a.ts'] },
+      { date: '2026-07-26T09:00:00+00:00', email: 'bea@example.com', files: ['lib/b.ts'] },
+      { date: '2026-07-27T09:00:00+00:00', email: 'bea@example.com', files: ['docs/guide.md'] },
+      { date: '2026-07-28T09:00:00+00:00', email: 'cris@example.com', files: ['Makefile'] },
+      { date: '2026-07-29T09:00:00+00:00', email: 'cris@example.com', files: ['scripts/run.sh'] },
+    ],
+  })
+
+  const heat = await heatTree(fixture.path, '12m', { now: NOW })
+
+  expect(heat.mainFolder).toBe('src')
+  expect(heat.commits).toBe(4)
+  const checkout = heat.children.find((child) => child.name === 'checkout')
+  expect(checkout).toMatchObject({ commits: 1, percent: 25 })
+
+  // 'lib' is neither the main folder nor hangs from it: a valid level with no
+  // children, not an error.
+  const outside = await heatTree(fixture.path, '12m', { now: NOW, path: 'lib' })
+  expect(outside.children).toEqual([])
+})
+
+test('package-lock.json is in neither tree nor KPI', async () => {
+  fixture = createRepoFixture({
+    commits: [
+      {
+        date: '2026-07-20T09:00:00+00:00',
+        email: 'ana@example.com',
+        files: ['src/a.ts', 'src/package-lock.json'],
+      },
+    ],
+  })
+
+  const heat = await heatTree(fixture.path, '12m', { now: NOW })
+  expect(heat.children.map((child) => child.name)).not.toContain('package-lock.json')
+  expect(heat.children).toEqual([{ name: 'a.ts', kind: 'file', commits: 1, percent: 100 }])
+
+  const analysis = await walkHistory(fixture.path, '12m', { now: NOW })
+  expect(analysis.kpis.filesTouched).toBe(1)
+})
+
+test('main folder defaults to src, else root', async () => {
+  const withSrc = createRepoFixture({
+    commits: [{ date: '2026-07-20T09:00:00+00:00', email: 'ana@example.com', files: ['src/a.ts'] }],
+  })
+  const withoutSrc = createRepoFixture({
+    commits: [{ date: '2026-07-20T09:00:00+00:00', email: 'ana@example.com', files: ['lib/a.ts'] }],
+  })
+  const empty = createRepoFixture()
+
+  try {
+    expect((await heatTree(withSrc.path, '12m', { now: NOW })).mainFolder).toBe('src')
+    expect((await heatTree(withoutSrc.path, '12m', { now: NOW })).mainFolder).toBe('')
+
+    const forEmpty = await heatTree(empty.path, '12m', { now: NOW })
+    expect(forEmpty).toEqual({ mainFolder: '', fallback: false, path: '', commits: 0, children: [] })
+  } finally {
+    withSrc.cleanup()
+    withoutSrc.cleanup()
+    empty.cleanup()
+  }
+})
+
+test('a stale main folder falls back', async () => {
+  fixture = createRepoFixture({
+    commits: [{ date: '2026-07-20T09:00:00+00:00', email: 'ana@example.com', files: ['src/a.ts'] }],
+  })
+
+  // 'checkout' was saved as the main folder in an earlier layout that no
+  // longer exists at HEAD: the automatic one ('src', since it is present)
+  // takes over, and the caller is told about it via `fallback`.
+  const heat = await heatTree(fixture.path, '12m', { now: NOW, mainFolder: 'checkout' })
+
+  expect(heat.fallback).toBe(true)
+  expect(heat.mainFolder).toBe('src')
+})
+
+test('children sort by commits, then name', async () => {
+  // 'zeta.ts' is touched first and 'beta.ts' second, but both end up tied at
+  // 2 commits: the tie must break by name, not by insertion order, so 'beta'
+  // (2 commits) comes before 'zeta' (2 commits), and 'alpha' (1 commit) last.
+  fixture = createRepoFixture({
+    commits: [
+      { date: '2026-07-20T09:00:00+00:00', email: 'ana@example.com', files: ['src/zeta.ts'] },
+      { date: '2026-07-21T09:00:00+00:00', email: 'ana@example.com', files: ['src/zeta.ts'] },
+      { date: '2026-07-22T09:00:00+00:00', email: 'ana@example.com', files: ['src/beta.ts'] },
+      { date: '2026-07-23T09:00:00+00:00', email: 'ana@example.com', files: ['src/beta.ts'] },
+      { date: '2026-07-24T09:00:00+00:00', email: 'ana@example.com', files: ['src/alpha.ts'] },
+    ],
+  })
+
+  const heat = await heatTree(fixture.path, '12m', { now: NOW })
+
+  expect(heat.children.map((child) => child.name)).toEqual(['beta.ts', 'zeta.ts', 'alpha.ts'])
+})
+
+test('a renamed file is a new path', async () => {
+  // The MVP does not follow renames: the old path and the new path are two
+  // independent children, each with its own commit count.
+  fixture = createRepoFixture({
+    commits: [
+      { date: '2026-07-20T09:00:00+00:00', email: 'ana@example.com', files: ['src/old.ts'] },
+      {
+        date: '2026-07-21T09:00:00+00:00',
+        email: 'ana@example.com',
+        files: [],
+        rename: { from: 'src/old.ts', to: 'src/new.ts' },
+      },
+    ],
+  })
+
+  const heat = await heatTree(fixture.path, '12m', { now: NOW })
+
+  const byName = new Map(heat.children.map((child) => [child.name, child.commits]))
+  // old.ts: added by the first commit, removed by the rename commit = 2.
+  expect(byName.get('old.ts')).toBe(2)
+  // new.ts: added by the rename commit only = 1.
+  expect(byName.get('new.ts')).toBe(1)
+})

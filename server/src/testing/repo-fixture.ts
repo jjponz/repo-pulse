@@ -21,8 +21,10 @@ export interface CommitFixture {
   date: string
   /** author email verbatim, so uppercase and `.mailmap` can be exercised */
   email: string
-  /** paths to create in that commit; at least one, with content different from the previous */
+  /** paths to create in that commit, with content different from the previous; may be empty when `rename` covers the whole commit */
   files: readonly string[]
+  /** `git mv` run before `files` is written, so the commit's diff names both the old and the new path */
+  rename?: { from: string; to: string }
   message?: string
 }
 
@@ -83,6 +85,12 @@ export function nonMergeCommits(path: string): number {
 }
 
 function writeCommit(path: string, commit: CommitFixture): void {
+  if (commit.rename !== undefined) {
+    const { from, to } = commit.rename
+    // `git mv` does not create the destination directory itself.
+    mkdirSync(dirname(join(path, to)), { recursive: true })
+    git(path, ['mv', from, to])
+  }
   for (const file of commit.files) {
     const target = join(path, file)
     mkdirSync(dirname(target), { recursive: true })

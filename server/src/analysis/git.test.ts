@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, beforeAll, expect, test } from 'vitest'
-import { AnalysisError, parseHistory, readHeadSha, readHistory } from './git.js'
+import { AnalysisError, parseHistory, readDirectories, readHeadSha, readHistory } from './git.js'
 import { createRepoFixture, nonMergeCommits } from '../testing/repo-fixture.js'
 import type { CommitFixture, RepoFixture } from '../testing/repo-fixture.js'
 
@@ -98,6 +98,32 @@ test('a directory that is not a git repo fails with the not-a-git-repo code', as
     await expect(readHistory(directory)).rejects.toMatchObject({ code: 'not-a-git-repo' })
   } finally {
     rmSync(directory, { recursive: true, force: true })
+  }
+})
+
+test('readDirectories lists dirs, not files', async () => {
+  const withDirs = createRepoFixture({
+    commits: [
+      {
+        date: '2026-07-20T09:00:00+00:00',
+        email: 'ana@example.com',
+        files: ['src/components/a.ts', 'lib/b.ts', 'README.md'],
+      },
+    ],
+  })
+  const empty = createRepoFixture()
+
+  try {
+    const directories = await readDirectories(withDirs.path)
+
+    expect(new Set(directories)).toEqual(new Set(['src', 'src/components', 'lib']))
+    expect(directories).not.toContain('README.md')
+
+    // A repo without HEAD has no directories to list either.
+    expect(await readDirectories(empty.path)).toEqual([])
+  } finally {
+    withDirs.cleanup()
+    empty.cleanup()
   }
 })
 

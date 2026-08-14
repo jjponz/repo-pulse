@@ -57,6 +57,31 @@ test('createRepoFixture without commits leaves an empty git repo', () => {
   expect(existsSync(join(fixture.path, 'src'))).toBe(false)
 })
 
+test('a rename names both paths', () => {
+  fixture = createRepoFixture({
+    commits: [
+      { date: '2026-07-20T09:00:00+00:00', email: 'ana@example.com', files: ['old.txt'] },
+      {
+        date: '2026-07-21T09:00:00+00:00',
+        email: 'ana@example.com',
+        files: [],
+        rename: { from: 'old.txt', to: 'new.txt' },
+      },
+    ],
+  })
+
+  // readHistory (git.ts) reads `--no-renames`: a rename commit must name BOTH
+  // the old and the new path, exactly like a plain git repo would.
+  const output = execFileSync(
+    'git',
+    ['-C', fixture.path, 'log', '--no-renames', '--name-only', '--pretty=format:', '-1'],
+    { encoding: 'utf8' },
+  )
+  const paths = output.split('\n').filter((line) => line !== '')
+
+  expect(new Set(paths)).toEqual(new Set(['old.txt', 'new.txt']))
+})
+
 test('cleanup removes the fixture directory', () => {
   const created = createRepoFixture({
     commits: [{ date: '2026-07-20T09:00:00+00:00', email: 'ana@example.com', files: ['a.txt'] }],
