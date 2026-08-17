@@ -8,7 +8,10 @@ import { dirname } from 'node:path'
  * thing this server writes. Nothing here touches a clone.
  */
 
-/** Schema version of the file; the first write creates it with `version: 1`. */
+/**
+ * Schema version of the file; the first write creates it with `version: 1`, and
+ * a file that declares any other version is not read (see `read`).
+ */
 const VERSION = 1
 
 export interface RepoSettings {
@@ -26,8 +29,9 @@ export interface SettingsStore {
 /**
  * The store reads the file ONCE, when it is built, so a restart of the server
  * picks up what the previous one wrote and no read afterwards touches the disk.
- * A file that is missing, unreadable or not the shape expected starts the store
- * EMPTY: a preference is not data worth refusing to boot over.
+ * A file that is missing, unreadable, of another version or not the shape
+ * expected starts the store EMPTY: a preference is not data worth refusing to
+ * boot over.
  */
 export function createSettingsStore(file: string): SettingsStore {
   const byRepo = read(file)
@@ -35,8 +39,18 @@ export function createSettingsStore(file: string): SettingsStore {
   return {
     get: (id) => byRepo.get(id),
     async set(id, settings) {
+      const previous = byRepo.get(id)
       byRepo.set(id, settings)
-      await write(file, byRepo)
+      try {
+        await write(file, byRepo)
+      } catch (error) {
+        // Memory never runs ahead of the disk: a failed write answers 500, and
+        // a server that kept the new value in memory would go on scoping the
+        // heat to a `mainFolder` that nothing saved and no restart would find.
+        if (previous === undefined) byRepo.delete(id)
+        else byRepo.set(id, previous)
+        throw error
+      }
     },
   }
 }
@@ -50,7 +64,18 @@ function read(file: string): Map<string, RepoSettings> {
     // Not written yet, unreadable, or not JSON at all.
     return byRepo
   }
-  if (typeof parsed !== 'object' || parsed === null || !('repos' in parsed)) return byRepo
+  if (typeof parsed !== 'object' || parsed === null) return byRepo
+  // A file from a future version is REFUSED, not read as a v1: the shape check
+  // below drops entry by entry, so a v2 whose entries changed shape would empty
+  // a user's saved folders without a word. Better to say so and start empty.
+  if ('version' in parsed && parsed.version !== VERSION) {
+    console.warn(
+      `repo-pulse: ignoring ${file}: it declares version ${JSON.stringify(parsed.version)}, ` +
+        `and this server only reads version ${VERSION}; starting with no saved settings`,
+    )
+    return byRepo
+  }
+  if (!('repos' in parsed)) return byRepo
   const repos = parsed.repos
   if (typeof repos !== 'object' || repos === null) return byRepo
   // Entry by entry: one unrecognisable repo does not discard the rest.
