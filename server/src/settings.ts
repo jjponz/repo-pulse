@@ -20,10 +20,14 @@ export interface RepoSettings {
 }
 
 export interface SettingsStore {
-  /** What is saved for `id`, or undefined when nothing is: then the heat auto-detects. */
-  get(id: string): RepoSettings | undefined
+  /**
+   * The main folder saved for `id`, or undefined when nothing is: then the heat
+   * auto-detects it. '' is a saved value like any other — the root of the clone
+   * — and must not be confused with "nothing saved".
+   */
+  mainFolderOf(id: string): string | undefined
   /** Saves and persists; it resolves once the file on disk holds the new value. */
-  set(id: string, settings: RepoSettings): Promise<void>
+  setMainFolder(id: string, mainFolder: string): Promise<void>
 }
 
 /**
@@ -37,10 +41,10 @@ export function createSettingsStore(file: string): SettingsStore {
   const byRepo = read(file)
 
   return {
-    get: (id) => byRepo.get(id),
-    async set(id, settings) {
+    mainFolderOf: (id) => byRepo.get(id)?.mainFolder,
+    async setMainFolder(id, mainFolder) {
       const previous = byRepo.get(id)
-      byRepo.set(id, settings)
+      byRepo.set(id, { mainFolder })
       try {
         await write(file, byRepo)
       } catch (error) {

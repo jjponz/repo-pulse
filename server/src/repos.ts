@@ -1,5 +1,6 @@
 import { readdir, stat } from 'node:fs/promises'
 import { join } from 'node:path'
+import type { Stats } from 'node:fs'
 import type * as analysis from './analysis/index.js'
 
 /**
@@ -122,8 +123,18 @@ export async function freshnessOf(repo: string, now: Date): Promise<Freshness> {
 }
 
 async function fetchedAtOf(repo: string): Promise<Date | null> {
+  return (await statOrNull(join(repo, '.git', 'FETCH_HEAD')))?.mtime ?? null
+}
+
+/**
+ * `stat` of a path that may not be there, or may not be readable, as null. The
+ * three questions this file asks the filesystem — is it a directory, is it
+ * there at all, when was it last written — are all this same call, and a `stat`
+ * that throws answers "no" to every one of them.
+ */
+async function statOrNull(path: string): Promise<Stats | null> {
   try {
-    return (await stat(join(repo, '.git', 'FETCH_HEAD'))).mtime
+    return await stat(path)
   } catch {
     return null
   }
@@ -150,21 +161,12 @@ function reasonOf(error: unknown): string {
 
 /** `stat`, not the dirent: it follows symlinks, so a symlinked clone counts. */
 async function isDirectory(path: string): Promise<boolean> {
-  try {
-    return (await stat(path)).isDirectory()
-  } catch {
-    return false
-  }
+  return (await statOrNull(path))?.isDirectory() ?? false
 }
 
 /** '.git' is a directory in a plain clone and a FILE in a worktree: both count. */
 async function exists(path: string): Promise<boolean> {
-  try {
-    await stat(path)
-    return true
-  } catch {
-    return false
-  }
+  return (await statOrNull(path)) !== null
 }
 
 /**

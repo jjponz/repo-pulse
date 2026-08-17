@@ -62,7 +62,7 @@ export function createRouter(deps: AppDeps): Router {
     const repo = await resolveRepo(deps.catalog, id)
     const window = windowOf(request.query.window)
     // The main folder comes from the settings store, never from the query.
-    const mainFolder = deps.settings.get(id)?.mainFolder
+    const mainFolder = deps.settings.mainFolderOf(id)
     const path = pathOf(request.query.path)
     const now = deps.now()
     const headSha = await deps.analysis.readHeadSha(repo)
@@ -82,7 +82,7 @@ export function createRouter(deps: AppDeps): Router {
     // A folder that is not under the root has no settings to save.
     await resolveRepo(deps.catalog, id)
     const mainFolder = mainFolderOf(request.body)
-    await deps.settings.set(id, { mainFolder })
+    await deps.settings.setMainFolder(id, mainFolder)
 
     response.json({ mainFolder })
   })
