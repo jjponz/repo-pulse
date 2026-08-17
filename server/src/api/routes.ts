@@ -39,8 +39,13 @@ export function createRouter(deps: AppDeps): Router {
     const window = windowOf(request.query.window)
     const now = deps.now()
     const headSha = await deps.analysis.readHeadSha(repo)
-    const summary = await summaries.remember(keyOf([repo, window, headSha, dayOf(now)]), () =>
-      deps.analysis.walkHistory(repo, window, { now }),
+    const summary = await summaries.remember(
+      keyOf([repo, window, headSha, dayOf(now)]),
+      () => deps.analysis.walkHistory(repo, window, { now }),
+      // Switching branches between the two reads is the normal use of this
+      // tool: an analysis of another sha would be filed under this one and
+      // served back the next time the developer switched here again.
+      (value) => value.headSha === headSha,
     )
     // The meta is NOT cached: it is a cheap read and the staleness warning has
     // to keep moving even while the analysis behind it stays valid.
@@ -64,6 +69,9 @@ export function createRouter(deps: AppDeps): Router {
     const heat = await heats.remember(
       keyOf([repo, window, headSha, dayOf(now), mainFolder, path]),
       () => deps.analysis.heatTree(repo, window, { mainFolder, path, now }),
+      // Same window as in the summary above: `heatTree` re-reads the history,
+      // so it can come back from a HEAD other than the one in the key.
+      (value) => value.headSha === headSha,
     )
 
     response.json({ window, ...heat })
@@ -83,8 +91,17 @@ export function createRouter(deps: AppDeps): Router {
 }
 
 export interface Cache<T> {
-  /** The value cached under `key`, or the one `compute` produces, stored as the most recent. */
-  remember(key: string, compute: () => Promise<T>): Promise<T>
+  /**
+   * The value cached under `key`, or the one `compute` produces, stored as the
+   * most recent.
+   *
+   * A computed value is stored only when `belongsToKey` accepts it — it is
+   * always returned to the caller who paid for it, just not kept. See the call
+   * sites: `compute` re-reads the history for itself, so a clone that moves
+   * between the read of HEAD that built the key and the walk that answers it
+   * produces a value the key would then be lying about.
+   */
+  remember(key: string, compute: () => Promise<T>, belongsToKey?: (value: T) => boolean): Promise<T>
 }
 
 /**
@@ -100,7 +117,7 @@ export function createCache<T extends object>(limit: number): Cache<T> {
   const entries = new Map<string, T>()
 
   return {
-    async remember(key, compute) {
+    async remember(key, compute, belongsToKey = () => true) {
       const hit = entries.get(key)
       if (hit !== undefined) {
         entries.delete(key)
@@ -108,6 +125,7 @@ export function createCache<T extends object>(limit: number): Cache<T> {
         return hit
       }
       const value = await compute()
+      if (!belongsToKey(value)) return value
       entries.set(key, value)
       if (entries.size > limit) {
         const leastRecentlyUsed = entries.keys().next().value

@@ -311,6 +311,48 @@ test('a day later the window is recomputed', async () => {
   expect(nextDay.body.buckets.at(-1).start).not.toBe(first.body.buckets.at(-1).start)
 })
 
+test('a day later the heat is recomputed', async () => {
+  world.clone('alpha', { commits: COMMITS })
+  const app = createApp(world.deps)
+
+  const first = await request(app).get('/api/repos/alpha/heat?window=30d')
+  const sameDay = await request(app).get('/api/repos/alpha/heat?window=30d')
+  world.advanceOneDay()
+  const nextDay = await request(app).get('/api/repos/alpha/heat?window=30d')
+
+  // Same clone, same HEAD, same window: the DAY is the only thing that moved.
+  expect(nextDay.body.headSha).toBe(first.body.headSha)
+  // And without this assertion the test would pass with no cache at all.
+  expect(sameDay.body).toEqual(first.body)
+  // The heat does not print its window, so what is pinned is the recompute
+  // itself: this route and the summary above share `dayOf` but call it at two
+  // different places, and losing the day here alone would still go green there.
+  expect(world.spies.heatTree).toHaveBeenCalledTimes(2)
+})
+
+test('an analysis computed at another sha is served but not cached', async () => {
+  world.clone('alpha', { commits: COMMITS })
+  const app = createApp(world.deps)
+  const otherSha = 'b'.repeat(40)
+  // What a clone that moves between the read of HEAD that builds the key and
+  // the walk that answers it comes back with — switching branches in your own
+  // clone is the normal use of this tool.
+  world.spies.walkHistory.mockImplementationOnce(async (repo, window, options) => ({
+    ...(await analysis.walkHistory(repo, window, options)),
+    headSha: otherSha,
+  }))
+
+  const misKeyed = await request(app).get('/api/repos/alpha/summary?window=30d')
+  const next = await request(app).get('/api/repos/alpha/summary?window=30d')
+
+  // Served to the caller who paid for it...
+  expect(misKeyed.body.headSha).toBe(otherSha)
+  // ...and not to the next one, who asked about a sha that value never saw.
+  expect(next.body.headSha).toMatch(/^[0-9a-f]{40}$/)
+  expect(next.body.headSha).not.toBe(otherSha)
+  expect(world.spies.walkHistory).toHaveBeenCalledTimes(2)
+})
+
 test('two windows do not share a cache entry', async () => {
   world.clone('alpha', { commits: COMMITS })
   const app = createApp(world.deps)

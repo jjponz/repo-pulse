@@ -64,5 +64,21 @@ function describe(error: unknown): { code: ApiErrorCode; message: string } {
   if (error instanceof SyntaxError && 'body' in error) {
     return { code: 'invalid-body', message: 'the request body is not valid JSON' }
   }
+  // And how it reports one past its 100 kB limit. It is the client's fault like
+  // the malformed one is, so it gets the same code: otherwise the only body
+  // this API accepts, `{mainFolder}`, could answer 500 to a bad request.
+  if (isTooLarge(error)) {
+    return { code: 'invalid-body', message: 'the request body is too large' }
+  }
   return { code: 'internal', message: error instanceof Error ? error.message : String(error) }
+}
+
+/** `body-parser` tags what it refuses with a `type`; this is its "over the limit" one. */
+function isTooLarge(error: unknown): boolean {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'type' in error &&
+    error.type === 'entity.too.large'
+  )
 }
