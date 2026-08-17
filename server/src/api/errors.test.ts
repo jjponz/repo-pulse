@@ -22,7 +22,7 @@ const REPO = '/nowhere/alpha'
 function appOver(fail: () => never) {
   const deps: AppDeps = {
     catalog: { list: () => Promise.resolve([]), resolve: () => Promise.resolve(REPO) },
-    settings: { get: () => undefined, set: () => Promise.resolve() },
+    settings: { mainFolderOf: () => undefined, setMainFolder: () => Promise.resolve() },
     analysis: { readHeadSha: fail, readLastCommitAt: fail, walkHistory: fail, heatTree: fail },
     now: () => new Date(),
   }

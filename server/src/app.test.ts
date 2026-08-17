@@ -7,7 +7,7 @@ import type { AppDeps } from './app.js'
 /** Health touches no dependency: the emptiest deps that typecheck are enough. */
 const deps: AppDeps = {
   catalog: { list: () => Promise.resolve([]), resolve: () => Promise.resolve(null) },
-  settings: { get: () => undefined, set: () => Promise.resolve() },
+  settings: { mainFolderOf: () => undefined, setMainFolder: () => Promise.resolve() },
   analysis,
   now: () => new Date(),
 }
