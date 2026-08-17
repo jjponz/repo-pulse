@@ -14,6 +14,12 @@ import type { Catalog } from '../repos.js'
  * Walking the history of a big clone is the expensive part, so each answer is
  * cached under the HEAD sha it was computed from. HEAD itself is read on EVERY
  * request — cheap, and it is what makes the cache notice that the clone moved.
+ *
+ * The key also carries the DAY of `deps.now()`: an `Analysis` freezes the
+ * boundaries of its window (`from` / `to`) and its buckets stop at the day it
+ * was computed, so a long-lived server over a clone that never advances would
+ * otherwise keep serving a window whose end has visibly passed — contradicting
+ * the `meta`, which is recomputed on every request.
  */
 
 /** Entries kept per cache: enough for every window of every clone of a root. */
@@ -33,7 +39,7 @@ export function createRouter(deps: AppDeps): Router {
     const window = windowOf(request.query.window)
     const now = deps.now()
     const headSha = await deps.analysis.readHeadSha(repo)
-    const summary = await summaries.remember(keyOf([repo, window, headSha]), () =>
+    const summary = await summaries.remember(keyOf([repo, window, headSha, dayOf(now)]), () =>
       deps.analysis.walkHistory(repo, window, { now }),
     )
     // The meta is NOT cached: it is a cheap read and the staleness warning has
@@ -55,8 +61,9 @@ export function createRouter(deps: AppDeps): Router {
     const path = pathOf(request.query.path)
     const now = deps.now()
     const headSha = await deps.analysis.readHeadSha(repo)
-    const heat = await heats.remember(keyOf([repo, window, headSha, mainFolder, path]), () =>
-      deps.analysis.heatTree(repo, window, { mainFolder, path, now }),
+    const heat = await heats.remember(
+      keyOf([repo, window, headSha, dayOf(now), mainFolder, path]),
+      () => deps.analysis.heatTree(repo, window, { mainFolder, path, now }),
     )
 
     response.json({ window, ...heat })
@@ -120,13 +127,29 @@ function keyOf(parts: readonly (string | null | undefined)[]): string {
   return parts.map((part) => JSON.stringify(part ?? null)).join('\u0000')
 }
 
+/**
+ * The day `now` falls on, in UTC — the same arithmetic `analysis/windows.ts`
+ * uses for its own date maths. It is the part of the key that lets an analysis
+ * expire once the calendar has left its window behind.
+ */
+function dayOf(now: Date): string {
+  return now.toISOString().slice(0, 10)
+}
+
 async function resolveRepo(catalog: Catalog, id: string): Promise<string> {
   const repo = await catalog.resolve(id)
   if (repo === null) throw new ApiError('unknown-repo', `no clone named '${id}' under the root`)
   return repo
 }
 
-/** No window is the default one; an unknown one is not silently corrected. */
+/**
+ * No window is the default one; an unknown one is not silently corrected.
+ *
+ * This is DELIBERATELY stricter than `pathOf` below: a window is a closed set,
+ * so anything outside it — including the array a repeated '?window=' arrives
+ * as — is a client mistake with its own code, `invalid-window`. Do not align
+ * the two by loosening this one.
+ */
 function windowOf(value: unknown): TimeWindow {
   if (value === undefined) return DEFAULT_WINDOW
   if (typeof value === 'string' && isTimeWindow(value)) return value
@@ -136,6 +159,12 @@ function windowOf(value: unknown): TimeWindow {
 /**
  * '?path=' travels straight through to `heatTree`, which normalises it. Repeated
  * in the query it arrives as an array, and then it is as good as absent.
+ *
+ * So it is DELIBERATELY laxer than `windowOf` above: a path is free text with
+ * no closed set to check against, the error map has no `invalid-path` code, and
+ * inventing one is not this slice's call. Repeated, it answers 200 over the
+ * auto-detected folder instead of 400. Do not align the two by tightening this
+ * one — that would add a code the contract does not have.
  */
 function pathOf(value: unknown): string | undefined {
   return typeof value === 'string' ? value : undefined

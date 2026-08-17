@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, expect, test } from 'vitest'
@@ -32,6 +32,24 @@ test('the first write creates the file, its directory and its version', async ()
   })
   // A new store over the same file reads it back: that is what a restart does.
   expect(createSettingsStore(nested).get('alpha')).toEqual({ mainFolder: 'src/checkout' })
+})
+
+test('two writes in flight at once still leave one whole file', async () => {
+  const store = createSettingsStore(file)
+
+  // Same process, same file: only a temporary name unique PER WRITE keeps these
+  // two from writing over each other's bytes before either rename lands.
+  await Promise.all([
+    store.set('alpha', { mainFolder: 'src/checkout' }),
+    store.set('beta', { mainFolder: 'src/dashboard' }),
+  ])
+
+  expect(JSON.parse(readFileSync(file, 'utf8'))).toEqual({
+    version: 1,
+    repos: { alpha: { mainFolder: 'src/checkout' }, beta: { mainFolder: 'src/dashboard' } },
+  })
+  // Nothing left over in the data directory: every temporary was renamed away.
+  expect(readdirSync(dataDir)).toEqual(['settings.json'])
 })
 
 test('a file that is not valid JSON starts the store empty instead of failing', () => {

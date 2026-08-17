@@ -55,6 +55,8 @@ interface World {
   folder(name: string): string
   /** Deps over the SAME settings file with a new store and a new cache: a restart. */
   restart(): AppDeps
+  /** Moves the instant `deps.now()` reports exactly one day forward, same app. */
+  advanceOneDay(): void
   cleanup(): void
 }
 
@@ -64,8 +66,9 @@ function createWorld(): World {
   mkdirSync(root)
   const spies = spiesOverAnalysis()
   const fixtures: RepoFixture[] = []
-  // One fixed instant per test: every window and the freshness check hang off it.
-  const now = new Date()
+  // One instant per test, which only `advanceOneDay` moves: every window and
+  // the freshness check hang off it.
+  let now = new Date()
   const depsOverTheSameFiles = (): AppDeps => ({
     catalog: createCatalog(root, spies),
     settings: createSettingsStore(join(dir, 'settings.json')),
@@ -91,6 +94,9 @@ function createWorld(): World {
       return path
     },
     restart: depsOverTheSameFiles,
+    advanceOneDay() {
+      now = new Date(now.getTime() + 86_400_000)
+    },
     cleanup() {
       for (const fixture of fixtures) fixture.cleanup()
       rmSync(dir, { recursive: true, force: true })
@@ -270,6 +276,37 @@ test('a new commit invalidates the cache', async () => {
   expect(world.spies.walkHistory).toHaveBeenCalledTimes(2)
 })
 
+test('a day later the window is recomputed', async () => {
+  world.clone('alpha', { commits: COMMITS })
+  const app = createApp(world.deps)
+
+  const first = await request(app).get('/api/repos/alpha/summary?window=30d')
+  const sameDay = await request(app).get('/api/repos/alpha/summary?window=30d')
+  world.advanceOneDay()
+  const nextDay = await request(app).get('/api/repos/alpha/summary?window=30d')
+
+  // Same clone, same HEAD, same window: the DAY is the only thing that moved.
+  expect(nextDay.body.headSha).toBe(first.body.headSha)
+  // And without this assertion the test would pass with no cache at all.
+  expect(sameDay.body).toEqual(first.body)
+  expect(world.spies.walkHistory).toHaveBeenCalledTimes(2)
+  // What the stale entry was serving: a window whose end had already passed.
+  expect(nextDay.body.to).not.toBe(first.body.to)
+  expect(nextDay.body.buckets.at(-1).start).not.toBe(first.body.buckets.at(-1).start)
+})
+
+test('two windows do not share a cache entry', async () => {
+  world.clone('alpha', { commits: COMMITS })
+  const app = createApp(world.deps)
+
+  const thirtyDays = await request(app).get('/api/repos/alpha/summary?window=30d')
+  const ninetyDays = await request(app).get('/api/repos/alpha/summary?window=90d')
+
+  expect(thirtyDays.body).toMatchObject({ window: '30d', bucket: 'day' })
+  expect(ninetyDays.body).toMatchObject({ window: '90d', bucket: 'week' })
+  expect(world.spies.walkHistory).toHaveBeenCalledTimes(2)
+})
+
 test('no author identity in the payload', async () => {
   const alpha = world.clone('alpha', { commits: COMMITS })
   fetched(alpha)
@@ -300,14 +337,20 @@ test('an unknown repo is 404, and so is an id that leaves the root', async () =>
   // '..%2f' arrives decoded as '../': the parent of the root IS a real
   // directory, so only the check on the id keeps it from being served.
   const outside = await request(app).get('/api/repos/..%2fetc/heat')
-  // A '..' of its own never reaches the router: Express answers that one.
+  // A '..' of its own never reaches the router; nor does a mistyped path match
+  // any route. Both land on the catch-all under '/api'.
   const parent = await request(app).get('/api/repos/%2e%2e/summary')
+  const mistyped = await request(app).get('/api/repoz')
 
   for (const response of [unknown, outside]) {
     expect(response.status).toBe(404)
     expect(response.body).toEqual({ error: { code: 'unknown-repo', message: expect.any(String) } })
   }
-  expect(parent.status).toBe(404)
+  // Typed too: a UI reading `error.code` must never get Express's HTML 404.
+  for (const response of [parent, mistyped]) {
+    expect(response.status).toBe(404)
+    expect(response.body).toEqual({ error: { code: 'not-found', message: expect.any(String) } })
+  }
 })
 
 test('an unknown window is 400', async () => {
@@ -340,15 +383,33 @@ test('the empty main folder is legal and scopes the heat to the root', async () 
   world.clone('alpha', { commits: COMMITS })
   const app = createApp(world.deps)
 
+  // Nothing saved yet: the heat auto-detects 'src' and CACHES that answer. A
+  // key that joined its parts plainly would hand this very entry back below,
+  // because "nothing saved" and a saved '' would encode identically.
+  const autoDetected = await request(app).get('/api/repos/alpha/heat')
   const saved = await request(app).put('/api/repos/alpha/settings').send({ mainFolder: '' })
   const response = await request(app).get('/api/repos/alpha/heat')
 
+  expect(autoDetected.body).toMatchObject({ mainFolder: 'src', path: 'src' })
   expect(saved.body).toEqual({ mainFolder: '' })
   expect(response.body).toMatchObject({ mainFolder: '', fallback: false, path: '' })
   expect(response.body.children).toEqual([
     { name: 'src', kind: 'dir', commits: 5, percent: 83 },
     { name: 'README.md', kind: 'file', commits: 1, percent: 17 },
   ])
+})
+
+test('a saved main folder that no longer exists at HEAD falls back', async () => {
+  world.clone('alpha', { commits: COMMITS })
+  const app = createApp(world.deps)
+
+  // 'legacy' is not a directory of the HEAD tree: the heat says so out loud
+  // instead of answering an empty level, and uses the auto-detected folder.
+  await request(app).put('/api/repos/alpha/settings').send({ mainFolder: 'legacy' })
+  const response = await request(app).get('/api/repos/alpha/heat')
+
+  expect(response.status).toBe(200)
+  expect(response.body).toMatchObject({ mainFolder: 'src', fallback: true, path: 'src' })
 })
 
 test('the cache evicts the least recently used entry', async () => {

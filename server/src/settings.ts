@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { mkdir, rename, writeFile } from 'node:fs/promises'
 import { dirname } from 'node:path'
@@ -72,10 +73,15 @@ function isRepoSettings(value: unknown): value is RepoSettings {
  * Temporary file plus `rename` in the same directory: a crash halfway never
  * leaves a truncated settings file behind, because the rename is atomic and the
  * old file stays whole until it lands.
+ *
+ * The temporary name is unique PER WRITE, not per process: two `set` calls in
+ * flight at the same time would otherwise write the same path and could land a
+ * mixed or truncated file — which, given that an unparseable file starts the
+ * store empty, means silently losing every saved `mainFolder`.
  */
 async function write(file: string, byRepo: ReadonlyMap<string, RepoSettings>): Promise<void> {
   await mkdir(dirname(file), { recursive: true })
-  const temporary = `${file}.${process.pid}.tmp`
+  const temporary = `${file}.${randomUUID()}.tmp`
   const content = JSON.stringify({ version: VERSION, repos: Object.fromEntries(byRepo) }, null, 2)
   await writeFile(temporary, `${content}\n`, 'utf8')
   await rename(temporary, file)
