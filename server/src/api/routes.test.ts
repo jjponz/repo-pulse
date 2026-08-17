@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, rmSync, symlinkSync, utimesSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import request from 'supertest'
@@ -70,7 +70,7 @@ function createWorld(): World {
   // the freshness check hang off it.
   let now = new Date()
   const depsOverTheSameFiles = (): AppDeps => ({
-    catalog: createCatalog(root, spies),
+    catalog: createCatalog(root, spies, () => now),
     settings: createSettingsStore(join(dir, 'settings.json')),
     analysis: spies,
     now: () => now,
@@ -114,9 +114,14 @@ afterEach(() => {
   world.cleanup()
 })
 
-/** What a `git fetch` leaves behind, which is all this server may read about it. */
-function fetched(fixture: RepoFixture): void {
-  writeFileSync(join(fixture.path, '.git', 'FETCH_HEAD'), '')
+/**
+ * What a `git fetch` leaves behind, which is all this server may read about it.
+ * `when` backdates it: that mtime is the whole of the freshness rule.
+ */
+function fetched(fixture: RepoFixture, when?: Date): void {
+  const fetchHead = join(fixture.path, '.git', 'FETCH_HEAD')
+  writeFileSync(fetchHead, '')
+  if (when !== undefined) utimesSync(fetchHead, when, when)
 }
 
 test('the same HEAD does not walk twice', async () => {
@@ -135,24 +140,35 @@ test('the same HEAD does not walk twice', async () => {
 
 test('repos lists the clones', async () => {
   const alpha = world.clone('alpha', { commits: COMMITS })
+  const ancient = world.clone('ancient')
   world.clone('empty')
   world.folder('not-a-clone')
   fetched(alpha)
+  fetched(ancient, new Date(Date.now() - 30 * 86_400_000))
 
   const response = await request(createApp(world.deps)).get('/api/repos')
 
   expect(response.status).toBe(200)
-  // 'not-a-clone' has no '.git': it is not listed, though it can still be resolved.
-  expect(response.body.repos.map((repo: { id: string }) => repo.id)).toEqual(['alpha', 'empty'])
+  // Sorted by name, and 'not-a-clone' has no '.git': it is not listed, though
+  // it can still be resolved.
+  expect(response.body.repos.map((repo: { id: string }) => repo.id)).toEqual([
+    'alpha',
+    'ancient',
+    'empty',
+  ])
 
-  const [first, second] = response.body.repos
+  const [first, second, third] = response.body.repos
   // Exactly these fields, no more: nothing about an author may sneak into the list.
-  expect(Object.keys(first)).toEqual(['id', 'name', 'path', 'lastCommitAt', 'fetchedAt'])
+  expect(Object.keys(first)).toEqual(['id', 'name', 'path', 'lastCommitAt', 'fetchedAt', 'stale'])
   expect(first).toMatchObject({ id: 'alpha', name: 'alpha', path: join(world.root, 'alpha') })
   expect(Date.parse(first.lastCommitAt)).toBe(Date.parse(COMMITS.at(-1)?.date ?? ''))
   expect(Date.parse(first.fetchedAt)).not.toBeNaN()
-  // A clone with no commits and no fetch: two nulls, not two errors.
-  expect(second).toMatchObject({ id: 'empty', lastCommitAt: null, fetchedAt: null })
+  expect(first.stale).toBe(false)
+  // Fetched a month ago: the list says so itself, with the same 7-day rule the
+  // `meta` of a summary uses, so the UI never re-derives it.
+  expect(second).toMatchObject({ id: 'ancient', stale: true })
+  // A clone with no commits and no fetch: nulls and no warning, not errors.
+  expect(third).toMatchObject({ id: 'empty', lastCommitAt: null, fetchedAt: null, stale: false })
 })
 
 test('summary carries pulse, people, trend, meta', async () => {

@@ -23,6 +23,12 @@ export interface Clone {
   lastCommitAt: string | null
   /** When the clone was last fetched, null when it never was. */
   fetchedAt: string | null
+  /**
+   * Whether that photo is stale, by the same rule `/summary` reports in its
+   * `meta`: it comes from `freshnessOf`, so the 7-day threshold has exactly one
+   * implementation and the UI never has to re-derive it.
+   */
+  stale: boolean
 }
 
 export interface Freshness {
@@ -46,35 +52,41 @@ export interface Catalog {
 
 /**
  * `port` is the slice of the analysis barrel the catalog needs: the only code
- * in the repo that runs git.
+ * in the repo that runs git. `now` is the instant the freshness of every photo
+ * is measured against — the same one the rest of the API hangs off.
  */
 export function createCatalog(
   root: string,
   port: Pick<typeof analysis, 'readLastCommitAt'>,
+  now: () => Date = () => new Date(),
 ): Catalog {
+  /** The entry for the child `name`, or null when that child is not a clone. */
+  async function cloneAt(name: string, at: Date): Promise<Clone | null> {
+    const path = join(root, name)
+    if (!(await isDirectory(path)) || !(await exists(join(path, '.git')))) return null
+    const [lastCommitAt, freshness] = await Promise.all([
+      // One broken clone degrades to a null date; it does not sink the list. It
+      // is warned about, though: without a trace, a clone whose git cannot be
+      // read looks exactly like one with no commits.
+      port.readLastCommitAt(path).catch((error: unknown) => {
+        console.warn(`repo-pulse: cannot read the last commit of ${path}: ${reasonOf(error)}`)
+        return null
+      }),
+      freshnessOf(path, at),
+    ])
+    return { id: name, name, path, lastCommitAt, ...freshness }
+  }
+
   return {
     async list() {
-      const clones: Clone[] = []
-      // Sorted by code unit, not by `localeCompare`: the order of the list must
-      // not change between machines with a different `LANG`.
-      for (const name of (await children(root)).sort()) {
-        const path = join(root, name)
-        if (!(await isDirectory(path)) || !(await exists(join(path, '.git')))) continue
-        clones.push({
-          id: name,
-          name,
-          path,
-          // One broken clone degrades to a null date; it does not sink the
-          // list. It is warned about, though: without a trace, a clone whose
-          // git cannot be read looks exactly like one with no commits.
-          lastCommitAt: await port.readLastCommitAt(path).catch((error: unknown) => {
-            console.warn(`repo-pulse: cannot read the last commit of ${path}: ${reasonOf(error)}`)
-            return null
-          }),
-          fetchedAt: (await fetchedAtOf(path))?.toISOString() ?? null,
-        })
-      }
-      return clones
+      const at = now()
+      // Every clone is read in parallel: each one costs a handful of stats and
+      // two git processes, and one after another they would turn the first
+      // request the dashboard makes — the one endpoint with no cache behind
+      // it — into hundreds of round trips in a row over a root with dozens of
+      // clones. The entries do not depend on each other.
+      const clones = await Promise.all((await children(root)).map((name) => cloneAt(name, at)))
+      return clones.filter((clone) => clone !== null).sort(byName)
     },
 
     async resolve(id) {
@@ -83,6 +95,16 @@ export function createCatalog(
       return (await isDirectory(path)) ? path : null
     },
   }
+}
+
+/**
+ * Order of the list: by name, compared by code unit and not by `localeCompare`,
+ * so it does not change between machines with a different `LANG`. It is applied
+ * once the entries are built, because they are built out of order.
+ */
+function byName(one: Clone, other: Clone): number {
+  if (one.name === other.name) return 0
+  return one.name < other.name ? -1 : 1
 }
 
 /**

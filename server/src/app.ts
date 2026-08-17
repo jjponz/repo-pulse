@@ -33,12 +33,15 @@ export interface AppDeps {
 export function createDeps(): AppDeps {
   const root = process.env.REPO_PULSE_ROOT ?? join(homedir(), 'git')
   const dataDir = process.env.REPO_PULSE_DATA_DIR ?? join(homedir(), '.repo-pulse')
+  // One clock behind everything the API dates: the staleness of the list, the
+  // `meta` of a summary and the boundaries of every window.
+  const now = () => new Date()
 
   return {
-    catalog: createCatalog(root, analysis),
+    catalog: createCatalog(root, analysis, now),
     settings: createSettingsStore(join(dataDir, 'settings.json')),
     analysis,
-    now: () => new Date(),
+    now,
   }
 }
 

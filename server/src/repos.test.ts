@@ -62,8 +62,23 @@ test('the catalog lists only the children that are clones', async () => {
     path: join(root, 'alpha'),
     lastCommitAt: expect.any(String),
     fetchedAt: null,
+    stale: false,
   })
   expect(clones[1]?.lastCommitAt).toBeNull()
+})
+
+test('the list carries the same staleness the summary reports', async () => {
+  const fixture = clone('alpha')
+  const fetchHead = join(fixture.path, '.git', 'FETCH_HEAD')
+  writeFileSync(fetchHead, '')
+  const longAgo = new Date(NOW.getTime() - 30 * MS_PER_DAY)
+  utimesSync(fetchHead, longAgo, longAgo)
+
+  const clones = await createCatalog(root, analysis, () => NOW).list()
+
+  // Straight from `freshnessOf`, the one implementation of the 7-day rule: a
+  // list view badging a stale photo does not re-derive it on the other side.
+  expect(clones[0]).toMatchObject({ fetchedAt: longAgo.toISOString(), stale: true })
 })
 
 test('a clone git cannot read degrades to a null date, it does not sink the list', async () => {
