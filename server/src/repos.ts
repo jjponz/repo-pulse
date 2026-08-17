@@ -64,8 +64,13 @@ export function createCatalog(
           id: name,
           name,
           path,
-          // One broken clone degrades to a null date; it does not sink the list.
-          lastCommitAt: await port.readLastCommitAt(path).catch(() => null),
+          // One broken clone degrades to a null date; it does not sink the
+          // list. It is warned about, though: without a trace, a clone whose
+          // git cannot be read looks exactly like one with no commits.
+          lastCommitAt: await port.readLastCommitAt(path).catch((error: unknown) => {
+            console.warn(`repo-pulse: cannot read the last commit of ${path}: ${reasonOf(error)}`)
+            return null
+          }),
           fetchedAt: (await fetchedAtOf(path))?.toISOString() ?? null,
         })
       }
@@ -102,13 +107,23 @@ async function fetchedAtOf(repo: string): Promise<Date | null> {
   }
 }
 
-/** A root that does not exist yet is an empty catalog, not a failure. */
+/**
+ * A root that does not exist yet is an empty catalog, not a failure — but it is
+ * warned about: an unreadable or mistyped `REPO_PULSE_ROOT` is the likeliest
+ * misconfiguration there is, and it presents as "no clones at all".
+ */
 async function children(root: string): Promise<string[]> {
   try {
     return await readdir(root)
-  } catch {
+  } catch (error) {
+    console.warn(`repo-pulse: cannot read the clones root ${root}: ${reasonOf(error)}`)
     return []
   }
+}
+
+/** What to put in a warning: the message of an `Error`, anything else as it is. */
+function reasonOf(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
 }
 
 /** `stat`, not the dirent: it follows symlinks, so a symlinked clone counts. */

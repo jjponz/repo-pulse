@@ -12,6 +12,7 @@ export type ApiErrorCode =
   | 'not-a-git-repo'
   | 'invalid-window'
   | 'invalid-body'
+  | 'not-found'
   | 'git-failed'
   | 'internal'
 
@@ -20,6 +21,10 @@ const STATUS: Readonly<Record<ApiErrorCode, number>> = {
   'not-a-git-repo': 422,
   'invalid-window': 400,
   'invalid-body': 400,
+  // No endpoint at that URL under '/api'. Like `internal`, it is not a case the
+  // UI draws a screen for: it exists so that NOTHING under '/api' can answer
+  // outside the envelope, which is what the UI parses.
+  'not-found': 404,
   'git-failed': 500,
   internal: 500,
 }

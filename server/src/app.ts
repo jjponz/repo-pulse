@@ -2,7 +2,7 @@ import { homedir } from 'node:os'
 import { join } from 'node:path'
 import express from 'express'
 import * as analysis from './analysis/index.js'
-import { errorHandler } from './api/errors.js'
+import { ApiError, errorHandler } from './api/errors.js'
 import { createRouter } from './api/routes.js'
 import { createCatalog } from './repos.js'
 import { createSettingsStore } from './settings.js'
@@ -52,6 +52,12 @@ export function createApp(deps: AppDeps): Express {
   })
 
   app.use('/api', createRouter(deps))
+  // Nothing under '/api' may answer outside the typed envelope: without this,
+  // a mistyped URL would fall through to Express's default HTML 404 and a UI
+  // reading `error.code` would get a page of markup instead.
+  app.use('/api', (request, _response, next) => {
+    next(new ApiError('not-found', `no endpoint at ${request.method} ${request.originalUrl}`))
+  })
   app.use(errorHandler)
 
   return app

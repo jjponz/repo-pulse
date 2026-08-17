@@ -1,7 +1,7 @@
 import { mkdirSync, mkdtempSync, rmSync, symlinkSync, utimesSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterEach, beforeEach, expect, test } from 'vitest'
+import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import * as analysis from './analysis/index.js'
 import { createCatalog, freshnessOf } from './repos.js'
 import { createRepoFixture, daysAgo } from './testing/repo-fixture.js'
@@ -26,7 +26,17 @@ beforeEach(() => {
 afterEach(() => {
   for (const fixture of fixtures) fixture.cleanup()
   rmSync(temporary, { recursive: true, force: true })
+  vi.restoreAllMocks()
 })
+
+/**
+ * The catalog warns about what it degrades silently. A test that exercises one
+ * of those paths captures the warning and asserts it instead of letting it
+ * print: the suite's output stays clean AND the diagnostic stays pinned.
+ */
+function captureWarnings() {
+  return vi.spyOn(console, 'warn').mockImplementation(() => {})
+}
 
 /** A clone reachable as `name` under the root, through a symlink. */
 function clone(name: string, spec: FixtureSpec = {}): RepoFixture {
@@ -64,18 +74,28 @@ test('a clone git cannot read degrades to a null date, it does not sink the list
   // A HEAD that points nowhere makes git exit 128, not 1: without the guard
   // this would reject and take the whole list down with it.
   writeFileSync(join(broken.path, '.git', 'HEAD'), 'this-is-not-a-valid-ref\n')
+  const warn = captureWarnings()
 
   const clones = await createCatalog(root, analysis).list()
 
   expect(clones.map((repo) => repo.id)).toEqual(['broken', 'healthy'])
   expect(clones[0]?.lastCommitAt).toBeNull()
   expect(clones[1]?.lastCommitAt).toEqual(expect.any(String))
+  // Degraded, not silent: a broken clone must not read like an empty one.
+  expect(warn).toHaveBeenCalledTimes(1)
+  expect(warn.mock.calls[0]?.[0]).toContain(join(root, 'broken'))
 })
 
 test('a clones root that does not exist is an empty list, not a failure', async () => {
-  const catalog = createCatalog(join(temporary, 'nowhere'), analysis)
+  const missing = join(temporary, 'nowhere')
+  const warn = captureWarnings()
+
+  const catalog = createCatalog(missing, analysis)
 
   expect(await catalog.list()).toEqual([])
+  // The likeliest misconfiguration there is: it names the root it could not read.
+  expect(warn).toHaveBeenCalledTimes(1)
+  expect(warn.mock.calls[0]?.[0]).toContain(missing)
 })
 
 test('resolve returns any direct child, including one that is not a clone', async () => {
