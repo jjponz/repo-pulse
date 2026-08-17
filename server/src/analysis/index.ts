@@ -13,7 +13,7 @@ export interface WalkHistoryOptions {
  * previous window, KPIs and authorship concentration.
  *
  * `walkHistory` is one of this barrel's entry points, alongside `heatTree`,
- * `readHeadSha` and `readDirectories`; `server/src/analysis` as a whole is
+ * `readHeadSha`, `readLastCommitAt` and `readDirectories`; `server/src/analysis` as a whole is
  * the only code in the repo that runs git. No author name or email gets out
  * of here.
  */
@@ -27,7 +27,7 @@ export async function walkHistory(
   return { ...aggregate(window, commits, now), headSha }
 }
 
-export { AnalysisError, readDirectories, readHeadSha } from './git.js'
+export { AnalysisError, readDirectories, readHeadSha, readLastCommitAt } from './git.js'
 // `History` is deliberately NOT exported: it carries `Commit[]`, and a `Commit`
 // carries the author email. That type dies in the module, like the data.
 export type { AnalysisErrorCode } from './git.js'

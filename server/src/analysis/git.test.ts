@@ -2,7 +2,14 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, beforeAll, expect, test } from 'vitest'
-import { AnalysisError, parseHistory, readDirectories, readHeadSha, readHistory } from './git.js'
+import {
+  AnalysisError,
+  parseHistory,
+  readDirectories,
+  readHeadSha,
+  readHistory,
+  readLastCommitAt,
+} from './git.js'
 import { createRepoFixture, nonMergeCommits } from '../testing/repo-fixture.js'
 import type { CommitFixture, RepoFixture } from '../testing/repo-fixture.js'
 
@@ -185,6 +192,24 @@ test('a directory that is not a git repo fails with the not-a-git-repo code', as
     await expect(readHistory(directory)).rejects.toMatchObject({ code: 'not-a-git-repo' })
   } finally {
     rmSync(directory, { recursive: true, force: true })
+  }
+})
+
+test('readLastCommitAt returns the author date of the newest commit, null without commits', async () => {
+  // The newest non-merge commit of the fixture is the branch one, at 10:00.
+  // '%aI' spells the offset out ('+00:00'), so instants are compared, not strings.
+  const lastCommitAt = await readLastCommitAt(fixture.path)
+
+  expect(lastCommitAt).not.toBeNull()
+  expect(Date.parse(lastCommitAt ?? '')).toBe(Date.parse('2026-08-12T10:00:00+00:00'))
+
+  const empty = createRepoFixture()
+
+  try {
+    // No HEAD: 'git log' would fail with exit 128, and that is not a failure.
+    expect(await readLastCommitAt(empty.path)).toBeNull()
+  } finally {
+    empty.cleanup()
   }
 })
 

@@ -1,7 +1,8 @@
-import { createApp } from './app.js'
+import { createApp, createDeps } from './app.js'
 
 const port = Number(process.env.PORT ?? 3000)
 
-createApp().listen(port, '127.0.0.1', () => {
-  console.log(`repo-pulse server escuchando en http://localhost:${port}`)
+// 127.0.0.1 only: the photo of the local clones does not go out to the network.
+createApp(createDeps()).listen(port, '127.0.0.1', () => {
+  console.log(`repo-pulse server listening on http://localhost:${port}`)
 })

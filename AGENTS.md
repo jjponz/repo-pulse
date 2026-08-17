@@ -8,6 +8,10 @@ Remoto: `github.com/jjponz/repo-pulse`.
 ## Setup commands
 - Node ≥22 (`engines.node` del `package.json` raíz es la fuente de verdad).
 - `npm install` en la raíz instala los dos workspaces (`server/`, `web/`).
+- `REPO_PULSE_ROOT` — raíz de los clones que escanea el servidor, sin recursión;
+  por defecto `~/git`. El servidor solo lee de ahí: nunca muta un clon.
+- `REPO_PULSE_DATA_DIR` — directorio donde el servidor guarda su propio
+  `settings.json` (lo único que escribe); por defecto `~/.repo-pulse`.
 
 ## Build, test & lint
 Desde la raíz; cada comando cubre ambos workspaces:
