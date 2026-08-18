@@ -19,8 +19,8 @@ base: main
 # actualización de STATE.md no te vuelve a dejar atrás.
 last_commit: ""
 github_issue: null
-you_are_here: "Slices #1, #2 y #3 cerrados y cosechados (PR #8 → 9824d3d, PR #10 → 46a52c0, PR #13 → 6d933db), más el refactor a inglés (PR #12 → 66c34ac). Del #3 no queda residuo: worktree, rama local, rama remota y sesión cmux borrados. Cap 0/1 LIBRE, ningún agente vivo. El #4 (API HTTP) es el siguiente: sus dos deps (#2 y #3) están mergeadas, pero sigue en status:backlog — promoverlo es el gate humano. #4–#7 en backlog."
-next_action: "Promover el #4 a status:ready y despacharlo con /ct-next (env de los gotchas); luego verificar el arranque por cmux y atender su gate plan"
+you_are_here: "CUATRO slices cerrados y cosechados (PR #8 → 9824d3d, PR #10 → 46a52c0, PR #13 → 6d933db, PR #15 → c178caa), más el refactor a inglés (PR #12 → 66c34ac). Del #4 no queda residuo: worktree, rama local, rama remota, labels y sesión cmux limpiados, y /ct-status sale en verde (exit 0). El #5 (UI: shell y pulso) está EN VUELO desde el 2026-08-17 en .worktrees/5, rama feat/5, cmux workspace:6 — cap 1/1 LLENO. #6 y #7 siguen en status:backlog."
+next_action: "Atender el gate plan del #5: revisar el plan que publique como comentario del issue, responder OK y EMPUJARLO a mano por cmux a workspace:6 (responder en GitHub no lo despierta)"
 # blocked: null = NO bloqueado. Si el trabajo no puede continuar (una decisión
 # lo paró, el plan resultó falso, falta algo de fuera), NO lo escribas en prosa
 # dentro de next_action: ponlo aquí. El hook de SessionStart lo anuncia al
@@ -30,23 +30,37 @@ next_action: "Promover el #4 a status:ready y despacharlo con /ct-next (env de l
 blocked: null
 # verify: la comprobación PENDIENTE que valida este trabajo AL TERMINAR — nunca
 # un hecho ya comprobado, aunque se redacte en presente.
-verify: "el plan del #4 aparece como comentario de su issue y, tras el OK, su PR contra main llega con 'Closes #4' en el cuerpo, CI verde y sin tocar web/"
+verify: "el plan del #5 aparece como comentario de su issue y, tras el OK, su PR contra main llega con 'Closes #5' en el cuerpo, CI verde y captura antes/después adjunta (gate visual)"
 tasks: []
 ---
 ## Current State
-Epic groomeado (milestone + issues #1–#7 + labels + Project v2). TRES slices
-entregados y cosechados: #1 (esqueleto), #2 (análisis: pulso y gente) y #3
-(análisis: calor). `server/src/analysis/` es hoy un módulo completo y en
-inglés: `walkHistory` + `heatTree` + `readHeadSha` + `readDirectories` como
-entradas del barrel. Ningún agente en vuelo, cap 0/1 LIBRE. El #4 (API HTTP)
-tiene sus dos dependencias (#2 y #3) mergeadas: es el siguiente. #4–#7 en
-status:backlog.
+Epic groomeado (milestone + issues #1–#7 + labels + Project v2). Todo el BACKEND
+está entregado y cosechado: #1 (esqueleto), #2 (pulso y gente), #3 (calor) y #4
+(API HTTP). `server/` sirve hoy los cuatro endpoints bajo `/api` sobre el módulo
+puro `server/src/analysis/`, con caché por (repo, ventana, HEAD, día) y el sobre
+de error tipado `{error:{code,message}}`. Empieza el FRONT: el #5 (UI: shell y
+pulso) está en vuelo en `.worktrees/5` (rama `feat/5`, cmux `workspace:6`), cap
+1/1 LLENO. `web/` venía del #1 como un stub (`<h1>Repo Pulse</h1>`), sin proxy de
+dev a la API y sin entorno DOM de test: las dos cosas las cierra el #5 en su plan
+(escritas en su "Contexto heredado"). #6 y #7 en status:backlog.
 ## Immediate Next Steps
-1. Promover el #4 a status:ready y despacharlo con /ct-next.
-2. Verificar por cmux que el agente arrancó de verdad, no solo la ventana.
-3. Atender su gate plan: revisar el plan en el issue, responder OK y EMPUJARLO
-   a mano por cmux (responder en GitHub no lo despierta).
+1. Esperar el plan del #5 como comentario del issue y revisarlo (gate plan).
+2. Tras el OK, EMPUJAR al agente a mano por cmux a `workspace:6`.
+3. En el PR, exigir el gate visual: captura antes/después y la ruta para
+   reproducirlo. No lo cierra el agente.
 ## Decisions Made
+- Slice #4 cerrado el 2026-08-17 (PR #15 en squash, c178caa), sin rechazos ni
+  reopens. Cosechado: ready→claim 1m38, claim→release 66h23m20 (la cifra más alta
+  del epic, y no es tiempo de trabajo: el slice se despachó el 14 y cruzó el fin
+  de semana esperando su gate), release→merge 21m51, PR +1698/−10 en 19 ficheros.
+- El "Contexto heredado" del #5 lo escribió la coordinadora el 2026-08-17 ANTES de
+  despacharlo, y es la primera vez que esa sección se usa: hasta el #4 todos los
+  slices heredaban de un módulo puro que no tenía contrato de red. Trae el
+  contrato REAL de la API tal como quedó mergeada (rutas, forma de los payloads,
+  `previousWindowBuckets` como overlay alineado por índice, `trend.comparable`
+  para el AC de `all`, la lista de `code` de error) y NOMBRA las dos decisiones que
+  el issue no cierra: cómo llega la UI a la API en dev y qué entorno DOM de test
+  monta `web/`. Si el plan del #5 las contradice, la fuente es esa sección.
 - Slice #3 cerrado el 2026-08-14 (PR #13 en squash, 6d933db) tras RECHAZARLO una
   vez en revisión y devolverlo con `--reopen`. El bug: `unquotePath` (que el
   agente añadió por su cuenta, el issue no lo pedía) mezclaba code units UTF-16
@@ -146,9 +160,17 @@ status:backlog.
       pgrep -f claude + lsof -p <pid> -d cwd       # el del slice vive en .worktrees/<n>
   La sesión de un slice arranca además con `--dangerously-skip-permissions`
   («bypass permissions on» en su pie), la coordinadora no.
+  Reparto actual: `workspace:2` = COORDINADORA (esta), `workspace:6` = slice #5.
+- BORRAR LA RAMA DE UN SLICE YA MERGEADO PIDE `-d` CON AVISO, no `-D`. Los PRs se
+  mergean en SQUASH, así que `feat/<n>` nunca es ancestro de `main` y `git branch
+  -d` avisa («merged to refs/remotes/origin/feat/<n>, but not yet merged to
+  HEAD») antes de borrar. No es señal de que quede trabajo: eso se comprueba con
+  `git diff main feat/<n>` (dos puntos, no tres — con tres sale el diff entero del
+  slice aunque esté todo mergeado). Vacío = no hay nada que rescatar.
 ## Residuo pendiente
-- Rama local `respaldo-feat-2-pre-rebase`: red de seguridad del rebase del #2.
-  Su contenido está contenido en `main` salvo cosas que se corrigieron DESPUÉS
-  (`git diff origin/main respaldo-feat-2-pre-rebase` solo resta). Es borrable,
-  pero se deja porque nadie lo pidió.
+- Ninguno. `/ct-status` sale en verde (exit 0: nada en vuelo sin señales de vida,
+  nada por cosechar, nada de residuo) desde la cosecha del #4 el 2026-08-17. La
+  rama `respaldo-feat-2-pre-rebase` que este apartado listaba tampoco existe ya.
+  Lo único vivo en disco es `.worktrees/5` + `feat/5`, que es el slice EN VUELO,
+  no residuo.
 ## Critical Files
