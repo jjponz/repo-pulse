@@ -3,6 +3,7 @@ import { ApiError, fetchRepos, fetchSummary } from './api/client'
 import { DEFAULT_WINDOW } from './api/types'
 import type { ApiErrorCode, Clone, Summary, TimeWindow } from './api/types'
 import Header from './Header'
+import Pulse from './Pulse'
 
 /**
  * The shell: it owns the whole state of the dashboard (the clones, the
@@ -83,6 +84,7 @@ export default function App() {
       />
       {error !== null && <p role="alert">No se ha podido cargar la información ({error}).</p>}
       {error === null && summary === null && <p>Cargando…</p>}
+      {summary !== null && <Pulse summary={summary} />}
     </main>
   )
 }

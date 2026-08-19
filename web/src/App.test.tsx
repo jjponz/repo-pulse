@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { expect, test, vi } from 'vitest'
 import App from './App'
-import type { Clone, Summary, SummaryMeta } from './api/types'
+import type { Bucket, Clone, Summary, SummaryMeta } from './api/types'
 
 const CLONES: Clone[] = [
   {
@@ -14,8 +14,8 @@ const CLONES: Clone[] = [
   },
 ]
 
-/** The `meta` block is the only part of the summary this shell reads today. */
-function summaryWith(meta: SummaryMeta): Summary {
+/** A summary whose `meta` — and, for the pulse, whose series — the test picks. */
+function summaryWith(meta: SummaryMeta, overrides: Partial<Summary> = {}): Summary {
   return {
     window: '12m',
     bucket: 'month',
@@ -28,7 +28,13 @@ function summaryWith(meta: SummaryMeta): Summary {
     kpis: { commits: 0, activeAuthors: 0, filesTouched: 0 },
     concentration: { authors: 0, percentage: 0 },
     meta,
+    ...overrides,
   }
+}
+
+/** A bucket the pulse can draw: only its `commits` count reaches the chart. */
+function bucket(start: string, commits: number): Bucket {
+  return { start, commits, authors: 1 }
 }
 
 /**
@@ -36,11 +42,11 @@ function summaryWith(meta: SummaryMeta): Summary {
  * requested URL so a test can look at the last one. `vi.unstubAllGlobals()` in
  * the setup file undoes the stub after each test.
  */
-function stubApi(meta: SummaryMeta): { urls: string[] } {
+function stubApi(meta: SummaryMeta, overrides: Partial<Summary> = {}): { urls: string[] } {
   const urls: string[] = []
   vi.stubGlobal('fetch', (url: string) => {
     urls.push(url)
-    const body = url === '/api/repos' ? { repos: CLONES } : summaryWith(meta)
+    const body = url === '/api/repos' ? { repos: CLONES } : summaryWith(meta, overrides)
     return Promise.resolve({ ok: true, json: () => Promise.resolve(body) } as unknown as Response)
   })
   return { urls }
@@ -83,4 +89,45 @@ test('changing the window asks the API for that window', async () => {
   await waitFor(() => {
     expect(urls.at(-1)).toContain('window=all')
   })
+})
+
+test('the pulse draws the previous window behind the current one', async () => {
+  stubApi(
+    { lastCommitAt: null, fetchedAt: null, stale: false },
+    {
+      buckets: [bucket('2026-07-01T00:00:00.000Z', 2), bucket('2026-08-01T00:00:00.000Z', 4)],
+      previousWindowBuckets: [8, 1],
+    },
+  )
+
+  render(<App />)
+
+  const previous = await screen.findByTestId('pulse-previous')
+  const current = screen.getByTestId('pulse-current')
+  // Painted first, so the grey series stays behind the current one.
+  expect(previous.compareDocumentPosition(current) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  // One scale for both: the previous peak of 8 is the ceiling, and the current
+  // peak of 4 lands halfway up instead of on the headroom.
+  expect(previous.getAttribute('points')).toBe('0.0,6.0 600.0,174.9')
+  expect(current.getAttribute('points')).toBe('0.0,150.8 600.0,102.5')
+  expect(screen.getByText('commits por mes · gris = los 12 meses anteriores')).toBeTruthy()
+})
+
+test('on the full window there is no overlay', async () => {
+  stubApi(
+    { lastCommitAt: null, fetchedAt: null, stale: false },
+    {
+      window: 'all',
+      buckets: [bucket('2026-07-01T00:00:00.000Z', 2), bucket('2026-08-01T00:00:00.000Z', 4)],
+      previousWindowBuckets: null,
+    },
+  )
+
+  render(<App />)
+
+  // The current series proves the chart is drawn, so the absence below is an
+  // absence and not an unrendered block.
+  expect(await screen.findByTestId('pulse-current')).toBeTruthy()
+  expect(screen.queryByTestId('pulse-previous')).toBeNull()
+  expect(screen.getByText('commits por mes')).toBeTruthy()
 })
