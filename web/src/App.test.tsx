@@ -40,16 +40,29 @@ function bucket(start: string, commits: number): Bucket {
 /**
  * Doubles `fetch` with the two endpoints the shell calls, and records every
  * requested URL so a test can look at the last one. `vi.unstubAllGlobals()` in
- * the setup file undoes the stub after each test.
+ * the setup file undoes the stub after each test. `overrides` can also be a
+ * function of the requested window, which is how a test gives two windows two
+ * different payloads.
  */
-function stubApi(meta: SummaryMeta, overrides: Partial<Summary> = {}): { urls: string[] } {
+function stubApi(
+  meta: SummaryMeta,
+  overrides: Partial<Summary> | ((window: string) => Partial<Summary>) = {},
+): { urls: string[] } {
   const urls: string[] = []
   vi.stubGlobal('fetch', (url: string) => {
     urls.push(url)
-    const body = url === '/api/repos' ? { repos: CLONES } : summaryWith(meta, overrides)
+    const body =
+      url === '/api/repos'
+        ? { repos: CLONES }
+        : summaryWith(meta, typeof overrides === 'function' ? overrides(windowOf(url)) : overrides)
     return Promise.resolve({ ok: true, json: () => Promise.resolve(body) } as unknown as Response)
   })
   return { urls }
+}
+
+/** The `window` query parameter of a summary URL, e.g. `30d`. */
+function windowOf(url: string): string {
+  return new URL(url, 'http://test.invalid').searchParams.get('window') ?? ''
 }
 
 test('the header shows the last commit and the fetch date', async () => {
@@ -130,4 +143,61 @@ test('on the full window there is no overlay', async () => {
   expect(await screen.findByTestId('pulse-current')).toBeTruthy()
   expect(screen.queryByTestId('pulse-previous')).toBeNull()
   expect(screen.getByText('commits por mes')).toBeTruthy()
+})
+
+test('the full window declares there is nothing to compare', async () => {
+  stubApi(
+    { lastCommitAt: null, fetchedAt: null, stale: false },
+    {
+      window: 'all',
+      trend: { comparable: false, percentage: null, previousWindowCommits: null, reason: 'full-window' },
+    },
+  )
+
+  render(<App />)
+  fireEvent.click(screen.getByRole('button', { name: 'todo' }))
+
+  // The reason travels in the payload: the panel reads `trend.reason`, it does
+  // not work out from the window that there is nothing behind it.
+  expect(await screen.findByText('ventana completa: no hay comparable')).toBeTruthy()
+  expect(screen.getByTestId('trend-headline').textContent).toBe('—')
+})
+
+test('changing the window recomputes pulse, trend and KPIs', async () => {
+  stubApi({ lastCommitAt: null, fetchedAt: null, stale: false }, (window) =>
+    window === '30d'
+      ? {
+          window: '30d',
+          bucket: 'day',
+          from: '2026-07-20T00:00:00.000Z',
+          buckets: [bucket('2026-08-17T00:00:00.000Z', 1), bucket('2026-08-18T00:00:00.000Z', 3)],
+          trend: { comparable: true, percentage: -25, previousWindowCommits: 16, reason: null },
+          kpis: { commits: 12, activeAuthors: 2, filesTouched: 9 },
+        }
+      : {
+          buckets: [bucket('2026-07-01T00:00:00.000Z', 2), bucket('2026-08-01T00:00:00.000Z', 4)],
+          trend: { comparable: true, percentage: 40, previousWindowCommits: 30, reason: null },
+          kpis: { commits: 42, activeAuthors: 5, filesTouched: 31 },
+        },
+  )
+
+  render(<App />)
+  const current = await screen.findByTestId('pulse-current')
+  // The node the window change must NOT recreate: the shell re-renders, the
+  // page is never reloaded.
+  const select = screen.getByRole('combobox', { name: 'Repositorio' })
+  expect(current.getAttribute('points')).toBe('0.0,102.5 600.0,6.0')
+  expect(screen.getByTestId('trend-headline').textContent).toBe('+40%')
+  expect(screen.getByTestId('kpi-commits').textContent).toBe('42')
+
+  fireEvent.click(screen.getByRole('button', { name: '30 días' }))
+
+  // The shell blanks the summary while the new window loads, so the three
+  // blocks below are the ones the second payload drew, not leftovers.
+  await waitFor(() => {
+    expect(screen.getByTestId('trend-headline').textContent).toBe('-25%')
+  })
+  expect(screen.getByTestId('pulse-current').getAttribute('points')).toBe('0.0,134.7 600.0,6.0')
+  expect(screen.getByTestId('kpi-commits').textContent).toBe('12')
+  expect(screen.getByRole('combobox', { name: 'Repositorio' })).toBe(select)
 })
