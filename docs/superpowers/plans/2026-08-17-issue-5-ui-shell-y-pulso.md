@@ -196,7 +196,12 @@ sobre y el mismo 400, el `code` es `'internal'`.
 **Tests:** `'lists the clones'`, `'asks the summary for the window it is given'` (la URL lleva
 `window=all`), `'surfaces the code of the error envelope'`, `'a body that is not the envelope is internal'`.
 
-**Verification:** `npm test -w web` → exit 0. `npm run build && npm run lint` → exit 0.
+**Verification:** los dos, exit 0:
+
+```bash
+npm test -w web
+npm run build && npm run lint
+```
 
 ### Task 3 — la capa de textos en español
 
@@ -247,7 +252,12 @@ la otra frase: son los dos únicos motivos y no dicen lo mismo.
 `'window edges are formatted by window, in UTC'` (un ISO de las 23:30 Z no salta de día),
 `'a day ago reads hace 1 día'`.
 
-**Verification:** `npm test -w web` → exit 0. `npm run build && npm run lint` → exit 0.
+**Verification:** los dos, exit 0:
+
+```bash
+npm test -w web
+npm run build && npm run lint
+```
 
 ### Task 4 — los tokens del design system
 
@@ -298,8 +308,12 @@ así que no hay comportamiento que poner en rojo. Lo prueba el gate humano `visu
 
 **Tests:** N/A — el commit no añade comportamiento; la suite existente debe seguir verde.
 
-**Verification:** `npm run build -w web` → exit 0 (Vite resuelve el import de CSS).
-`npm test && npm run lint` → exit 0.
+**Verification:** los dos, exit 0; el primero prueba que Vite resuelve el import de CSS:
+
+```bash
+npm run build -w web
+npm test && npm run lint
+```
 
 ### Task 5 — la cabecera y el estado del shell
 
@@ -353,7 +367,12 @@ con `lastCommitAt` y `fetchedAt` a `null` ninguno de los dos textos existe.
 (clic en «todo» → la última URL pedida lleva `window=all`); retira `'renders the app title in a DOM'`,
 que apuntaba al stub del #1.
 
-**Verification:** `npm test -w web` → exit 0. `npm run build && npm run lint` → exit 0.
+**Verification:** los dos, exit 0:
+
+```bash
+npm test -w web
+npm run build && npm run lint
+```
 
 ### Task 6 — el bloque Pulso con el overlay del periodo anterior
 
@@ -405,7 +424,12 @@ que pincha la escala compartida: `polylinePoints([2], seriesMax([2], [4]))` NO e
 y en `App.test.tsx`: `'the pulse draws the previous window behind the current one'` y
 `'on the full window there is no overlay'` (no hay `pulse-previous`).
 
-**Verification:** `npm test -w web` → exit 0. `npm run build && npm run lint` → exit 0.
+**Verification:** los dos, exit 0:
+
+```bash
+npm test -w web
+npm run build && npm run lint
+```
 
 ### Task 7 — el panel de Tendencia y KPIs
 
@@ -447,7 +471,12 @@ grande es `'—'`. Es el AC 2, ahora en el DOM.
 `pulse-current`, el texto de `trendHeadline` y el KPI de commits, y el nodo del `<select>` de
 repo sigue siendo el mismo (no hubo recarga). Es el AC 1.
 
-**Verification:** `npm test -w web` → exit 0. `npm run build && npm run lint` → exit 0.
+**Verification:** los dos, exit 0:
+
+```bash
+npm test -w web
+npm run build && npm run lint
+```
 
 ### Task 8 — AGENTS.md: las dos decisiones abiertas, cerradas
 
@@ -488,8 +517,13 @@ Las abrió el esqueleto (#1) y las cerró el primer slice de UI (#5):
 
 **Tests:** N/A — no hay código nuevo; la suite existente debe seguir verde.
 
-**Verification:** `npm test && npm run lint && npm run build` → exit 0, y `AGENTS.md` sigue por
-debajo de las 150 líneas que pide su propia cabecera (`wc -l AGENTS.md`).
+**Verification:** los dos, exit 0; el segundo falla si `AGENTS.md` pasa de las 150 líneas que
+pide su propia cabecera:
+
+```bash
+npm test && npm run lint && npm run build
+test "$(wc -l < AGENTS.md)" -lt 150
+```
 
 ## 8. Global verification
 
