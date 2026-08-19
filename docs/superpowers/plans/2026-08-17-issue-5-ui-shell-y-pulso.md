@@ -57,6 +57,7 @@ explícitos de `vitest`). La composición, los textos y los colores salen de
 | File | Action | Consumed by | Block in §7 |
 |---|---|---|---|
 | `web/package.json` | modify | Task 1 | prose (config) |
+| `package-lock.json` | modify | Task 1 | prose (config) |
 | `web/vite.config.ts` | modify | Task 1 | prose (config) |
 | `web/src/testing/setup.ts` | create | Task 1 | prose (config) |
 | `web/src/App.test.tsx` | modify | Tasks 1, 5, 6, 7 | Current state |
@@ -109,7 +110,7 @@ commit no añade comportamiento; su prueba es el gate humano `visual`.
 
 **Objective:** `web/` monta React en jsdom bajo Vitest, y en dev sus `fetch('/api/…')` llegan al server del #4.
 
-**Files:** `web/package.json` (modify), `web/vite.config.ts` (modify), `web/src/testing/setup.ts` (create), `web/src/App.test.tsx` (modify)
+**Files:** `web/package.json` (modify), `package-lock.json` (modify), `web/vite.config.ts` (modify), `web/src/testing/setup.ts` (create), `web/src/App.test.tsx` (modify)
 
 Configuración, en prosa:
 
@@ -517,12 +518,14 @@ Las abrió el esqueleto (#1) y las cerró el primer slice de UI (#5):
 
 **Tests:** N/A — no hay código nuevo; la suite existente debe seguir verde.
 
-**Verification:** los dos, exit 0; el segundo falla si `AGENTS.md` pasa de las 150 líneas que
-pide su propia cabecera:
+**Verification:** los dos, exit 0; el segundo falla si la parte de `AGENTS.md` que se mantiene
+a mano pasa de las 150 líneas que pide su propia cabecera. El bloque que mantiene `/ct-init` va
+detrás de su marcador y no cuenta: no se edita a mano y hoy son 544 de las 648 líneas del
+fichero.
 
 ```bash
 npm test && npm run lint && npm run build
-test "$(wc -l < AGENTS.md)" -lt 150
+test "$(sed -n '/<!-- ct-init:slices-contract -->/q;p' AGENTS.md | wc -l)" -lt 150
 ```
 
 ## 8. Global verification
