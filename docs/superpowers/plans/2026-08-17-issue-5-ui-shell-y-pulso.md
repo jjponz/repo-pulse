@@ -538,10 +538,15 @@ npm run build && npm test && npm run lint   # exit 0
 
 La línea base de hoy es 113 tests (112 en `server`, 1 en `web`) y `npm run lint` no imprime
 nada. Al cerrar el slice `server` sigue en 112 y `web` sube con los tests de las tareas 1-3 y
-5-7. Para el gate humano `visual`: `npm run dev -w server` en una terminal y `npm run dev -w web`
-en otra, abrir la URL que imprime Vite, y comprobar las tres cosas — cambiar de ventana repinta
-Pulso, Tendencia y KPIs sin recargar; con «todo» el panel dice «ventana completa: no hay
-comparable»; y la cabecera enseña el último commit y la fecha de traída.
+5-7.
+
+Para el gate humano `visual`, el server NO tiene script `dev`: se compila y se arranca sobre
+`dist/`. En una terminal `npm run build -w server && npm start -w server` (escucha en
+`127.0.0.1:3000`); en otra `npm run dev -w web`, y se abre la URL que imprime Vite
+(`http://localhost:5173/`), que es la que pasa `/api` por el proxy. Ahí se comprueban las tres
+cosas: cambiar de ventana repinta Pulso, Tendencia y KPIs sin recargar; con «todo» el panel dice
+«ventana completa: no hay comparable»; y la cabecera enseña el último commit y la fecha de
+traída.
 
 ## 9. Assumptions
 
