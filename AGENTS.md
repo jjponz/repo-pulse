@@ -90,17 +90,14 @@ abajo.
 - En `git log`, `%aE` aplica `.mailmap` y `%ae` no. El análisis usa `%aE` y
   pasa el email a minúsculas: no lo cambies a la variante en minúscula.
 
-## Decisiones abiertas entre workspaces (con dueño)
-Las creó el esqueleto (#1) y no las cubre el criterio de aceptación de ningún
-slice; el dueño las resuelve cuando le toque, en vez de descubrirlas:
-- **Cómo llega `web/` al server en dev** — no hay `server.proxy` en
-  `web/vite.config.ts` ni CORS en el server, así que hoy un `fetch('/api/…')`
-  desde el dev server no llega. Dueño: el primer slice de UI que consuma la
-  API. Salida esperada: proxy de `/api` en Vite (no CORS en el server).
-- **Frontera `web/` → `server/`** — nada lo impide técnicamente. Regla: `web/`
-  NO importa de `server/`; si necesita los tipos del payload, los declara en
-  `web/`. Va con lo de arriba: un tipo del server puede arrastrar campos de
-  autor hasta el DOM. Dueño: el primer slice de UI.
+## Frontera `web/` ↔ `server/`
+Las abrió el esqueleto (#1) y las cerró el primer slice de UI (#5):
+- **En dev, `web/` llega al server por el proxy** — `web/vite.config.ts` encamina
+  `/api` a `http://127.0.0.1:3000`. El server no lleva CORS y no debe llevarlo:
+  la foto de los repos locales no sale de `127.0.0.1`.
+- **`web/` NO importa de `server/`** — los tipos del payload se declaran en
+  `web/src/api/types.ts`. Un tipo importado del server puede arrastrar campos de
+  autor hasta el DOM, y eso es justo lo que no puede pasar.
 
 ## Skills (load on demand)
 (ninguna específica del repo todavía)
