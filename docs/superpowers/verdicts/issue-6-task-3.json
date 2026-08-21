@@ -1,0 +1,51 @@
+{
+  "issue": 6,
+  "task": 3,
+  "task_name": "los textos de Gente y Calor",
+  "verdict": {
+    "ruling": "PASS",
+    "rubric": [
+      {
+        "rule": "objetivo",
+        "result": "El objetivo pide que todo el espanol nuevo viva en `web/src/format.ts`, puro y pineado. El diff solo toca `web/src/format.ts` y `web/src/format.test.ts`: las seis funciones nuevas (`concentrationSentence`, `windowLabelLong`, `noHeatHeadline`, `mainFolderLabel`, `heatFooter`, `fallbackNotice`) son puras (sin DOM, sin fetch, sin reloj), devuelven string y cada literal queda pineado con igualdad exacta (`toBe`) en el test. Ningun literal espanol nuevo aparece fuera de `format.ts`.",
+        "outcome": "conforme"
+      },
+      {
+        "rule": "asercion-tdd",
+        "result": "El **TDD:** nombra `test('one author concentrating is singular, two are plural')` y fija la asercion: `concentrationSentence({authors: 1, percentage: 80}, 42)` es '1 persona concentra 80% de los commits' y con `authors: 2` '2 personas concentran 80% de los commits'. El test del diff (format.test.ts:62-65 del paquete) contiene esas dos llamadas, con esos mismos argumentos, comparadas con `toBe` contra esos dos strings exactos. Coincide entrada por entrada y valor esperado por valor esperado.",
+        "outcome": "conforme"
+      },
+      {
+        "rule": "contrato",
+        "result": "Las seis firmas del bloque Contract coinciden nombre a nombre en identificador, nombres y orden de parametros y tipo de retorno (`heatFooter(children, hereCommits, mainFolderCommits): string`, `concentrationSentence(concentration: Concentration, commits: number)`, etc.). Comprobados caracter a caracter los siete literales cerrados: '30 dias/90 dias/12 meses/todo el historial'; 'Nadie ha tocado el repo en esta ventana.' con su punto; singular '1 persona concentra N% de los commits' y plural 'N personas concentran N% de los commits'; '' -> 'todo el repo'; 'El arbol sigue ahi; en esta ventana nadie lo ha tocado.' con punto y coma y punto final; '1 hijo tocado' / 'N hijos tocados' con separadores ' · ', 'commits aqui' y 'total de la carpeta principal N'; 'Ninguna carpeta tocada en <label>' sin punto final; 'La carpeta principal guardada ya no existe en HEAD: el calor se acota a <label>.' con punto final. Todos identicos al brief. El `Concentration` que importa existe ya en `web/src/api/types.ts:56`, declarado a mano en `web/`.",
+        "outcome": "conforme"
+      },
+      {
+        "rule": "decisiones-cerradas",
+        "result": "Dos filas inciden. «Pie del Calor» cierra que el denominador es la carpeta principal y que el texto pasa a hablar del total de la carpeta principal: el diff escribe 'total de la carpeta principal ${mainFolderCommits}', que es exactamente el literal que dicta la lista cerrada del propio brief, aunque la maqueta diga 'total repo' — la fila cerrada autoriza esa desviacion por escrito. «Frontera de tipos»: `format.ts` importa `Concentration` de './api/types', nunca de `server/`. El resto de filas (drill-down, tope de 8 filas, tokens, selector, series-points) no las toca este diff.",
+        "outcome": "conforme"
+      },
+      {
+        "rule": "patrones",
+        "result": "Exemplar `web/src/format.ts` (el propio fichero, previo): `windowLabelLong` copia la forma exhaustiva de `switch` sin `default` de `windowLabel`/`bucketNoun`, y `heatFooter`/`concentrationSentence` copian el early-return + template literal de `trendSentence`. Reglas: AGENTS.md lineas 34-36 («El codigo se escribe SIEMPRE en ingles. Identificadores ..., comentarios, nombres de test...») — identificadores, el comentario de format.test.ts y los siete nombres de test estan en ingles; lineas 41-44 («si lo lee una persona como producto ..., espanol») — los literales de interfaz estan en espanol; lineas 98-100 («`web/` NO importa de `server/`») — respetada. Maqueta: los seis literales salen de `concPhrase`, `heatFoot` y `noHeatPhrase` de `docs/design/repo-pulse-mockup.html` linea 389, con la unica desviacion que la fila cerrada «Pie del Calor» ordena.",
+        "outcome": "conforme"
+      },
+      {
+        "rule": "manipulacion-tests",
+        "result": "No aplica: las unicas lineas `-` del diff son las dos lineas de import reescritas (`-import type { Trend }` en el test y `-import type { BucketSize, TimeWindow, Trend }` en el modulo), ambas reemplazadas por la misma lista mas un tipo. Ninguna asercion, caso ni test preexistente se elimina, relaja ni reescribe.",
+        "outcome": "no-aplica"
+      },
+      {
+        "rule": "fixture-theater",
+        "result": "El comportamiento prometido lo produce codigo de produccion: cada string que el test afirma sale de una linea de `web/src/format.ts` (105-142), no de un mock, fixture ni valor duro del test. Los tests solo llaman a las funciones exportadas y comparan con `toBe`; no hay dobles ni stubs en el diff.",
+        "outcome": "conforme"
+      },
+      {
+        "rule": "alcance",
+        "result": "El diff escribe exactamente las seis funciones del Contract y los siete tests de la lista cerrada de **Tests:**, sin extras, sin refactor de codigo previo y sin helpers adicionales. No toca `server/`, ni `tokens.css`, ni los chips de «estado de demo», ni las pantallas del #7 — lo que `### Out of scope` nombra. La asercion de `noHeatHeadline` va dentro del test 'the long label of the full window is the whole history' porque la lista de siete nombres no tiene entrada propia para ella: es la resolucion minima de un hueco del plan, no un test extra, y deja el literal pineado con igualdad exacta ('Ninguna carpeta tocada en todo el historial').",
+        "outcome": "conforme"
+      }
+    ],
+    "findings": []
+  }
+}

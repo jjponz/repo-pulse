@@ -1,12 +1,14 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { expect, test, vi } from 'vitest'
 import App from './App'
-import type { Bucket, Clone, Summary, SummaryMeta } from './api/types'
+import type { Bucket, Clone, Heat, HeatEntry, Summary, SummaryMeta } from './api/types'
 
 const CLONES: Clone[] = [
   {
+    // Id and name differ on purpose: the URLs are built from the id, and what
+    // the screen calls the repo is the name.
     id: 'alpha',
-    name: 'alpha',
+    name: 'alpha-clone',
     path: '/git/alpha',
     lastCommitAt: '2026-08-13T09:00:00.000Z',
     fetchedAt: '2026-08-18T09:00:00.000Z',
@@ -14,8 +16,16 @@ const CLONES: Clone[] = [
   },
 ]
 
+/**
+ * Overrides for the summary payload. `Record<string, unknown>` on top of
+ * `Partial<Summary>` is deliberate: a test can make the double answer with
+ * fields the UI never declared — author identity, say — and prove that none of
+ * them reaches the DOM.
+ */
+type SummaryOverrides = Partial<Summary> & Record<string, unknown>
+
 /** A summary whose `meta` — and, for the pulse, whose series — the test picks. */
-function summaryWith(meta: SummaryMeta, overrides: Partial<Summary> = {}): Summary {
+function summaryWith(meta: SummaryMeta, overrides: SummaryOverrides = {}): Summary {
   return {
     window: '12m',
     bucket: 'month',
@@ -32,9 +42,42 @@ function summaryWith(meta: SummaryMeta, overrides: Partial<Summary> = {}): Summa
   }
 }
 
-/** A bucket the pulse can draw: only its `commits` count reaches the chart. */
-function bucket(start: string, commits: number): Bucket {
-  return { start, commits, authors: 1 }
+/** A bucket of the two series: `commits` for the pulse, `authors` for people. */
+function bucket(start: string, commits: number, authors = 1): Bucket {
+  return { start, commits, authors }
+}
+
+/**
+ * The heat tree the double answers with, keyed by the level asked for. The
+ * saved main folder is the root of the clone, so no `path` in the query and
+ * `''` are the same level.
+ */
+const HEAT_TREE: Record<string, HeatEntry[]> = {
+  '': [
+    { name: 'web', kind: 'dir', commits: 18, percent: 60 },
+    { name: 'server', kind: 'dir', commits: 12, percent: 40 },
+  ],
+  web: [{ name: 'src', kind: 'dir', commits: 18, percent: 100 }],
+}
+
+function heatFor(url: string): Heat {
+  const path = new URL(url, 'http://test.invalid').searchParams.get('path') ?? ''
+  const children = HEAT_TREE[path] ?? []
+  return {
+    window: '12m',
+    mainFolder: '',
+    fallback: false,
+    path,
+    commits: children.reduce((total, child) => total + child.commits, 0),
+    mainFolderCommits: 30,
+    headSha: '0f1e2d3',
+    children,
+  }
+}
+
+/** The heat requests out of `urls`, so a test can look at the last level asked for. */
+function heatUrls(urls: readonly string[]): string[] {
+  return urls.filter((url) => url.includes('/heat?'))
 }
 
 /**
@@ -46,7 +89,7 @@ function bucket(start: string, commits: number): Bucket {
  */
 function stubApi(
   meta: SummaryMeta,
-  overrides: Partial<Summary> | ((window: string) => Partial<Summary>) = {},
+  overrides: SummaryOverrides | ((window: string) => SummaryOverrides) = {},
 ): { urls: string[] } {
   const urls: string[] = []
   vi.stubGlobal('fetch', (url: string) => {
@@ -54,7 +97,9 @@ function stubApi(
     const body =
       url === '/api/repos'
         ? { repos: CLONES }
-        : summaryWith(meta, typeof overrides === 'function' ? overrides(windowOf(url)) : overrides)
+        : url.includes('/heat?')
+          ? heatFor(url)
+          : summaryWith(meta, typeof overrides === 'function' ? overrides(windowOf(url)) : overrides)
     return Promise.resolve({ ok: true, json: () => Promise.resolve(body) } as unknown as Response)
   })
   return { urls }
@@ -200,4 +245,95 @@ test('changing the window recomputes pulse, trend and KPIs', async () => {
   expect(screen.getByTestId('pulse-current').getAttribute('points')).toBe('0.0,134.7 600.0,6.0')
   expect(screen.getByTestId('kpi-commits').textContent).toBe('12')
   expect(screen.getByRole('combobox', { name: 'Repositorio' })).toBe(select)
+})
+
+test('no author identity reaches the DOM', async () => {
+  stubApi(
+    { lastCommitAt: null, fetchedAt: null, stale: false },
+    {
+      buckets: [bucket('2026-07-01T00:00:00.000Z', 3, 4), bucket('2026-08-01T00:00:00.000Z', 5, 7)],
+      kpis: { commits: 25, activeAuthors: 7, filesTouched: 12 },
+      concentration: { authors: 2, percentage: 80 },
+      // Identity the API never declares and the server never sends: it is here
+      // so the UI has something to leak if it ever renders what it was not
+      // asked to render.
+      topAuthorName: 'Ada Lovelace',
+      topAuthorEmail: 'ada@example.com',
+    },
+  )
+
+  render(<App />)
+
+  // The concentration phrase proves the people block was painted, so the three
+  // absences below are absences and not an empty screen.
+  expect(await screen.findByText('2 personas concentran 80% de los commits')).toBeTruthy()
+  expect(document.body.textContent).not.toContain('Ada Lovelace')
+  expect(document.body.textContent).not.toContain('ada@example.com')
+  expect(document.body.textContent).not.toContain('@')
+})
+
+test('the people block draws active authors per bucket', async () => {
+  stubApi(
+    { lastCommitAt: null, fetchedAt: null, stale: false },
+    {
+      // Commits and authors differ on purpose: a line drawn off `commits`
+      // would land on other coordinates than the ones pinned below.
+      buckets: [bucket('2026-07-01T00:00:00.000Z', 3, 1), bucket('2026-08-01T00:00:00.000Z', 5, 3)],
+      kpis: { commits: 8, activeAuthors: 3, filesTouched: 4 },
+    },
+  )
+
+  render(<App />)
+
+  // Its own geometry: the shorter box of `PEOPLE_GEOMETRY`, whose baseline is
+  // 109 and not the pulse's 199.
+  expect((await screen.findByTestId('people-authors')).getAttribute('points')).toBe('0.0,74.7 600.0,6.0')
+  expect(screen.getByText('autores activos por mes')).toBeTruthy()
+})
+
+test('the concentration bar is as wide as its percentage', async () => {
+  stubApi(
+    { lastCommitAt: null, fetchedAt: null, stale: false },
+    {
+      buckets: [bucket('2026-07-01T00:00:00.000Z', 9, 4), bucket('2026-08-01T00:00:00.000Z', 16, 5)],
+      kpis: { commits: 25, activeAuthors: 5, filesTouched: 12 },
+      concentration: { authors: 3, percentage: 64 },
+    },
+  )
+
+  render(<App />)
+
+  // The width is the payload's `percentage` and nothing else: not the author
+  // count, not a share worked out from the KPIs.
+  expect((await screen.findByTestId('concentration-bar')).style.width).toBe('64%')
+  expect(screen.getByText('3 personas concentran 64% de los commits')).toBeTruthy()
+})
+
+test('the heat block hangs from the right column and reloads on a window change', async () => {
+  const { urls } = stubApi(
+    { lastCommitAt: null, fetchedAt: null, stale: false },
+    { buckets: [bucket('2026-07-01T00:00:00.000Z', 2), bucket('2026-08-01T00:00:00.000Z', 4)] },
+  )
+
+  render(<App />)
+
+  // The right column of the grid: the same one the trend panel hangs from, and
+  // not the one the pulse lives in.
+  const breadcrumb = await screen.findByTestId('heat-breadcrumb')
+  const column = screen.getByTestId('trend-headline').closest('section')?.parentElement
+  expect(column?.contains(breadcrumb)).toBe(true)
+  expect(column?.contains(screen.getByTestId('pulse-current'))).toBe(false)
+  // The shell hands the block the name of the selected clone, not just its id:
+  // the root of the tree is drawn with that name.
+  expect(breadcrumb.textContent).toBe('alpha-clone')
+  expect(heatUrls(urls).at(-1)).toBe('/api/repos/alpha/heat?window=12m')
+
+  fireEvent.click(screen.getByRole('button', { name: 'todo' }))
+
+  // The window the header picked is the window the heat is asked for.
+  await waitFor(() => {
+    expect(heatUrls(urls).at(-1)).toBe('/api/repos/alpha/heat?window=all')
+  })
+  // Redrawn for the new window: the level the server anchors is back on screen.
+  expect(await screen.findByText('web/')).toBeTruthy()
 })

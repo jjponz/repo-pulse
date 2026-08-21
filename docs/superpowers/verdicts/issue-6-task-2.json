@@ -1,0 +1,51 @@
+{
+  "issue": 6,
+  "task": 2,
+  "task_name": "`series-points.ts`: una geometría por serie",
+  "verdict": {
+    "ruling": "PASS",
+    "rubric": [
+      {
+        "rule": "objetivo",
+        "result": "El objetivo pide que la aritmetica sirva a dos series con lineas base distintas sin mover un punto del Pulso. Ambas mitades estan en el diff: web/src/series-points.ts anade `SeriesGeometry` y el tercer parametro `geometry: SeriesGeometry = PULSE_GEOMETRY` en `polylinePoints` (y el segundo en `areaPoints`), con la formula reescrita sobre `geometry.width/baseline/headroom`; y el default conserva los valores originales (600/199/6), asi que las cadenas de puntos no cambian. Pulse.tsx solo cambia el origen del import y las tres constantes por `PULSE_GEOMETRY.width/.baseline`, sin tocar el JSX que produce los puntos (`polylinePoints(commits, max)` y `areaPoints(current)` siguen sin geometria explicita). Los dos tests de App.test.tsx que pinean las cadenas ('0.0,6.0 600.0,174.9', '0.0,150.8 600.0,102.5', '0.0,102.5 600.0,6.0', '0.0,134.7 600.0,6.0') no aparecen en el diff: siguen intactos.",
+        "outcome": "conforme"
+      },
+      {
+        "rule": "asercion-tdd",
+        "result": "El test literal `test('a geometry with another baseline scales to that baseline')` existe en web/src/series-points.test.ts y asierta exactamente el par que escribio el plan: `expect(polylinePoints([0, 1], 1, PEOPLE_GEOMETRY)).toBe('0.0,109.0 600.0,6.0')` y `expect(polylinePoints([0, 1], 1)).toBe('0.0,199.0 600.0,6.0')`. Comprobado contra la implementacion: con baseline 109 y headroom 6, y=109 y y=109-1*(109-6)=6; con el default, y=199 y y=6. Coincide con la entrada, el valor esperado y el proposito declarado (pinar que el default no se movio).",
+        "outcome": "conforme"
+      },
+      {
+        "rule": "contrato",
+        "result": "Comparado simbolo a simbolo con el bloque Contract: `SeriesGeometry` con width/baseline/headroom; `PULSE_GEOMETRY = { width: 600, baseline: 199, headroom: 6 }`; `PEOPLE_GEOMETRY = { width: 600, baseline: 109, headroom: 6 }`; `seriesMax(...series: readonly (readonly number[])[]): number` sin cambios; `polylinePoints(values, max, geometry?)` y `areaPoints(points, geometry?)` con `PULSE_GEOMETRY` por defecto en las dos, en ese orden de parametros. `PULSE_WIDTH`, `PULSE_BASELINE` y `PULSE_HEADROOM` dejan de existir (el fichero viejo se borra entero) y ningun fichero de web/src los importa. La formula es la citada en `Current state` con geometry.width / geometry.baseline / geometry.headroom. El call site de Pulse.tsx es literalmente el del bloque `Call site`: import de './series-points', `viewBox={`0 0 ${PULSE_GEOMETRY.width} 200`}`, y1/x2/y2 sobre PULSE_GEOMETRY.",
+        "outcome": "conforme"
+      },
+      {
+        "rule": "decisiones-cerradas",
+        "result": "La unica fila que este diff toca es «Geometria de series»: pulse-points.ts se renombra a series-points.ts y parametriza la geometria, que es exactamente lo que hace el diff (fichero viejo borrado, nuevo modulo con geometria como parametro, Gente podra reusarlo via PEOPLE_GEOMETRY). «Tokens de marca: no se tocan» se respeta: tokens.css no esta entre las rutas y todo color de Pulse.tsx sigue saliendo de variables (`var(--color-accent)`, `var(--color-text)`). Las demas filas (frontera de tipos, % del Calor, mainFolder, selector, datos de Gente, estado del drill-down, filas de fichero, tope de filas, pie del Calor) no tienen nada en este diff que las toque.",
+        "outcome": "conforme"
+      },
+      {
+        "rule": "patrones",
+        "result": "Vara: `Rules to obey: AGENTS.md` mas la maqueta. AGENTS.md lineas 34-36 («El codigo se escribe SIEMPRE en ingles... nombres de test... todo en ingles») se cumple: identificadores, comentarios y los cuatro nombres de test estan en ingles, y el unico texto en castellano de Pulse.tsx es texto visible de interfaz, que la misma seccion (lineas 41-44) manda dejar en castellano. Linea 30 («Tests con Vitest junto al codigo: *.test.ts») se cumple con web/src/series-points.test.ts. Frontera web/ - server/ (lineas 98-100): el modulo nuevo no importa nada de server/. Regla boy scout: no queda codigo en castellano en lo tocado. Exemplar `web/src/pulse-points.ts` («aritmetica pura pineada con strings exactos»): series-points.ts mantiene el idioma del fichero que sustituye — modulo puro, doc comment de cabecera, un comentario por export, `toFixed(1)` y join por espacio — y el test sigue pinando strings exactos en vez de leer el DOM. La maqueta no se contradice: el refactor no cambia ni un punto dibujado.",
+        "outcome": "conforme"
+      },
+      {
+        "rule": "manipulacion-tests",
+        "result": "El diff no trae ni una linea `-` en ningun fichero de test: series-points.test.ts entra como fichero nuevo y App.test.tsx no aparece. Los 3 tests preexistentes viajan con sus aserciones intactas — verificado contra el plan que los fijo (docs/superpowers/plans/2026-08-17-issue-5-ui-shell-y-pulso.md, lineas 419-424: `seriesMax([1, 2], [4])` es 4, `polylinePoints([4], 4)` es '0.0,6.0', el borde `polylinePoints([2], seriesMax([2], [4]))` NO es '0.0,6.0', y `polylinePoints([0, 0], 1)` es '0.0,199.0 600.0,199.0'), todas presentes tal cual en el fichero renombrado, mas 'the area closes on the baseline'. Los dos tests de App.test.tsx que pinean las cadenas del Pulso siguen en el fichero sin tocar (lineas 124-125 y 189/200), que es la red que el brief pide conservar. La cara borrada del rename (pulse-points.test.ts) no se presenta en el paquete, cosa que el brief declara de antemano; sin lineas `-` no hay nada que citar como debilitado.",
+        "outcome": "conforme"
+      },
+      {
+        "rule": "fixture-theater",
+        "result": "El efecto sale de codigo de produccion, no del andamiaje: la geometria parametrizada vive en web/src/series-points.ts (`const x = ... * geometry.width`, `const y = geometry.baseline - (value / max) * (geometry.baseline - geometry.headroom)`) y el consumidor real Pulse.tsx la usa via el default. El test no mockea ni stubea nada — importa el modulo y compara cadenas calculadas. Los valores esperados son literales, pero se derivan de la aritmetica de produccion (comprobado a mano para las cuatro cadenas), que es precisamente el patron que el plan nombra como exemplar.",
+        "outcome": "conforme"
+      },
+      {
+        "rule": "alcance",
+        "result": "Dentro de los cuatro ficheros declarados no hay nada que el texto de la tarea no pida: `SeriesGeometry`, `PULSE_GEOMETRY` y `PEOPLE_GEOMETRY` estan en el bloque Contract (PEOPLE_GEOMETRY todavia sin consumidor de produccion, pero es un simbolo que este contrato exige, no un extra); la actualizacion del doc comment de Pulse.tsx («la aritmetica vive en web/src/series-points.ts») es consecuencia directa del rename. `Out of scope` no se roza: no se toca server/, ni los chips de demo, ni las pantallas de estado del #7, ni se anaden peticiones. Ningun refactor, rename o helper adicional colado.",
+        "outcome": "conforme"
+      }
+    ],
+    "findings": []
+  }
+}

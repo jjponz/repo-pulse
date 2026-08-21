@@ -1,0 +1,59 @@
+{
+  "issue": 6,
+  "task": 5,
+  "task_name": "el bloque Gente",
+  "verdict": {
+    "ruling": "PASS",
+    "rubric": [
+      {
+        "rule": "objetivo",
+        "result": "El objetivo pide tres cosas: (a) que el bloque cuelgue bajo el Pulso, (b) que se vea cuanta gente toca el repo y cuanto concentran los que mas, (c) sin un solo nombre de autor en el DOM. (a) esta en App.tsx: el nuevo contenedor 'display: flex, flexDirection: column, gap: 48' con Pulse y despues People. (b) esta en People.tsx: la polilinea 'people-authors' sobre buckets.map((entry) => entry.authors) mas el rotulo 'autores activos por mes', y la barra 'concentration-bar' con concentrationSentence(concentration, kpis.commits). (c) el componente solo lee bucket, buckets, concentration y kpis de Summary, y Summary (web/src/api/types.ts, sin tocar) no declara ningun campo de identidad: no hay linea que pueda pintar un nombre.",
+        "outcome": "conforme"
+      },
+      {
+        "rule": "asercion-tdd",
+        "result": "test('no author identity reaches the DOM') existe con ese nombre literal y el cuerpo coincide con la frase del brief: el doble responde concentration: {authors: 2, percentage: 80} y kpis.activeAuthors: 7, mas los dos campos de identidad no declarados (topAuthorName: 'Ada Lovelace', topAuthorEmail: 'ada@example.com'). Afirma la presencia de '2 personas concentran 80% de los commits' y las tres ausencias ('Ada Lovelace', 'ada@example.com', '@') sobre document.body.textContent. El brief pedia 'contiene' sobre document.body.textContent y el diff usa findByText del texto exacto: es igual o mas estricto, y cumple la funcion que el brief le asigna (probar que el bloque se pinto para que las ausencias sean ausencias). Discrimina de verdad: web/src/testing/setup.ts registra cleanup() en afterEach, asi que document.body solo contiene el render de este test, y ningun texto legitimo de la pantalla (rutas '/git/alpha', fechas, KPIs) trae '@'.",
+        "outcome": "conforme"
+      },
+      {
+        "rule": "contrato",
+        "result": "Contract (web/src/People.tsx) verificado nombre a nombre: 'export interface PeopleProps { summary: Summary }' y 'export default function People({ summary }: PeopleProps)' identicos. La composicion tambien: h2 'Gente' a 30px/600; subtitulo '¿cuánta gente lo toca? ¿depende de pocos?' a 17px en --color-neutral-600; rotulo derecho `autores activos por ${bucketNoun(bucket)}`; svg viewBox '0 0 600 110' (via PEOPLE_GEOMETRY.width) preserveAspectRatio none, role img, aria-label 'Gente', 130px de alto; polyline data-testid 'people-authors' con polylinePoints(authors, seriesMax(authors), PEOPLE_GEOMETRY) en --color-accent-2 a 2.5; linea base en PEOPLE_GEOMETRY.baseline = 109 en --color-text a 1.5; caja de 28px con 'border: 1px solid var(--color-text)', dentro div data-testid 'concentration-bar' de width `${concentration.percentage}%` en --color-text y el resto en --color-neutral-200; frase concentrationSentence(concentration, kpis.commits) a 20px; nota final a 15px en --color-neutral-600 con el texto exacto 'Solo reparto: los nombres de los autores no aparecen en ninguna parte de la herramienta.'. El Call site (web/src/App.tsx) es literalmente el bloque del brief.",
+        "outcome": "conforme"
+      },
+      {
+        "rule": "decisiones-cerradas",
+        "result": "Filas que toca este diff, todas implementadas con el valor cerrado: 'Frontera de tipos' — People.tsx hace 'import type { Summary } from ./api/types', nada de server/; 'Fuente de los %' — la barra usa concentration.percentage del payload y el test lo pina en '64%', no se recalcula nada; 'Datos de Gente' — solo buckets[].authors y concentration del summary que ya carga App, People no hace ninguna peticion (recibe summary como prop); 'Geometria de series' — importa PEOPLE_GEOMETRY, polylinePoints y seriesMax de web/src/series-points.ts, el modulo ya renombrado; 'Tokens de marca' — web/src/tokens.css no aparece ni en el diff ni en las rutas tocadas, y todos los colores de People.tsx salen de variables (--color-neutral-600, --color-accent-2, --color-text, --color-neutral-200), todas existentes en tokens.css. Las demas filas (mainFolder, selector, drill-down, filas de fichero, tope de filas, pie del Calor) no las roza este diff.",
+        "outcome": "conforme"
+      },
+      {
+        "rule": "patrones",
+        "result": "Vara real y abierta. Exemplar web/src/Pulse.tsx: People.tsx reproduce su idioma linea por linea (misma section flex/gap 14px, misma cabecera baseline con h2 30px/600 y subtitulo 17px, mismo svg con preserveAspectRatio none + role img + aria-label, mismo vectorEffect='non-scaling-stroke', misma linea base leida de la geometria). web/src/TrendPanel.tsx: data-testid por dato, cumplido ('people-authors', 'concentration-bar'). Regla docs/design/repo-pulse-mockup.html: el bloque Gente de la maqueta dice 'font-size: 17px; color: #7d7979' para el subtitulo, 'font-size: 16px; color: #7d7979' para 'autores activos por {{ winBucket }}', 'viewBox 0 0 600 110' con 'height: 130px', 'font-size: 20px; width: 300px; line-height: 1.3' para la frase, '#eae7e7' para el resto de la barra y 'font-size: 15px; color: #7d7979' para la nota; el diff da exactamente esos valores por sus variables. Regla AGENTS.md: 'El codigo se escribe SIEMPRE en ingles' — identificadores, comentarios y nombres de test del diff estan en ingles y el texto de UI en espanol, como manda la frontera 'si lo lee un compilador, ingles; si lo lee una persona como producto, espanol'; 'web/ NO importa de server/' respetado.",
+        "outcome": "conforme"
+      },
+      {
+        "rule": "manipulacion-tests",
+        "result": "Las lineas '-' de web/src/App.test.tsx son tres: las firmas de summaryWith y stubApi (cambio de tipo del parametro overrides) y la firma mas el comentario de bucket ('function bucket(start: string, commits: number): Bucket' -> 'authors = 1' por defecto). Ninguna toca una asercion, un caso ni un test: los cuerpos de los ocho tests preexistentes quedan intactos en el diff y el valor por defecto authors = 1 deja identicas todas las llamadas previas a bucket(). No hay asercion eliminada ni relajada. El coste de tipado del cambio de firma se reporta una sola vez, bajo alcance.",
+        "outcome": "conforme"
+      },
+      {
+        "rule": "fixture-theater",
+        "result": "El efecto sale de codigo de produccion. La frase que prueba que el bloque se pinto la genera concentrationSentence de web/src/format.ts (preexistente) a partir de concentration y kpis.commits del payload; las coordenadas '0.0,74.7 600.0,6.0' salen de polylinePoints con PEOPLE_GEOMETRY (baseline 109, headroom 6) sobre authors [1,3] y seriesMax = 3 — con commits [3,5] darian '0.0,47.2' y con PULSE_GEOMETRY '0.0,134.7', asi que el numero pineado distingue tanto la serie como la geometria; el ancho '64%' es el atributo de estilo que escribe People.tsx. Ningun mock ni valor esperado sustituye a una linea de produccion: los unicos campos inventados por el doble (topAuthorName, topAuthorEmail) existen precisamente para que no tengan efecto.",
+        "outcome": "conforme"
+      },
+      {
+        "rule": "alcance",
+        "result": "Los tres ficheros son los declarados y dentro de ellos no hay nada ajeno: App.tsx solo anade el import de People y el contenedor del Call site; People.tsx es el componente del contrato; App.test.tsx anade los tres tests de la linea **Tests:** y los dos ajustes de helper que esos tests necesitan. Nada de server/, del settings.json, de tokens.css ni de las pantallas del #7 que 'Out of scope' nombra. Una sola observacion, de amplitud del cambio de tipo del helper, reportada como low.",
+        "outcome": "conforme"
+      }
+    ],
+    "findings": [
+      {
+        "rule": "alcance",
+        "severity": "low",
+        "what": "El ensanchado del tipo de overrides es mas amplio de lo que pide la tarea. 'Partial<Summary> & Record<string, unknown>' lleva una firma de indice de cadena, y eso desactiva la comprobacion de propiedades excedentes de TypeScript para TODOS los llamantes de summaryWith y stubApi, no solo para el test de fuga: en los seis tests preexistentes una clave mal escrita (p.ej. 'bukcets: [...]' en lugar de 'buckets') ya no da error de compilacion, se absorbe en el spread y el test corre contra el summary por defecto sin que nada avise. El brief pide que el doble meta campos que el tipo no declara, pero eso solo hace falta en una llamada; confinarlo ahi (un cast en el unico call site del test de identidad, o un parametro aparte) daba el mismo verde sin tocar el tipado de los otros seis. Los tipos de los campos declarados si siguen comprobandose, por eso es low y no medium.",
+        "where": "web/src/App.test.tsx:23",
+        "evidence": "type SummaryOverrides = Partial<Summary> & Record<string, unknown>"
+      }
+    ]
+  }
+}

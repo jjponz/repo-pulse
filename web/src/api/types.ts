@@ -84,6 +84,28 @@ export interface Summary {
   meta: SummaryMeta
 }
 
+/** One child of the level `GET /heat` was asked for. */
+export interface HeatEntry {
+  name: string
+  kind: 'dir' | 'file'
+  commits: number
+  percent: number
+}
+
+export interface Heat {
+  window: TimeWindow
+  /** the saved main folder; `''` is the root of the clone */
+  mainFolder: string
+  /** true when the saved main folder no longer exists in HEAD */
+  fallback: boolean
+  /** the level these children belong to; `''` is the root of the clone */
+  path: string
+  commits: number
+  mainFolderCommits: number
+  headSha: string | null
+  children: HeatEntry[]
+}
+
 export const WINDOWS: readonly TimeWindow[] = ['30d', '90d', '12m', 'all']
 
 export const DEFAULT_WINDOW: TimeWindow = '12m'

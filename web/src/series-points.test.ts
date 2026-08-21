@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest'
-import { areaPoints, polylinePoints, seriesMax } from './pulse-points'
+import { PEOPLE_GEOMETRY, areaPoints, polylinePoints, seriesMax } from './series-points'
 
 test('both series share one scale', () => {
   // The maximum of every series together, so the overlay is readable: the
@@ -18,4 +18,11 @@ test('a zero series sits on the baseline', () => {
 
 test('the area closes on the baseline', () => {
   expect(areaPoints('0.0,6.0 600.0,199.0')).toBe('0,199 0.0,6.0 600.0,199.0 600,199')
+})
+
+test('a geometry with another baseline scales to that baseline', () => {
+  // Another series, another baseline: the peak still reaches the headroom.
+  expect(polylinePoints([0, 1], 1, PEOPLE_GEOMETRY)).toBe('0.0,109.0 600.0,6.0')
+  // The pair pins that the default did not move.
+  expect(polylinePoints([0, 1], 1)).toBe('0.0,199.0 600.0,6.0')
 })
