@@ -19,8 +19,8 @@ base: main
 # actualización de STATE.md no te vuelve a dejar atrás.
 last_commit: ""
 github_issue: null
-you_are_here: "CUATRO slices cerrados y cosechados (PR #8 → 9824d3d, PR #10 → 46a52c0, PR #13 → 6d933db, PR #15 → c178caa), más el refactor a inglés (PR #12 → 66c34ac). Del #4 no queda residuo: worktree, rama local, rama remota, labels y sesión cmux limpiados, y /ct-status sale en verde (exit 0). El #5 (UI: shell y pulso) está EN VUELO desde el 2026-08-17 en .worktrees/5, rama feat/5, cmux workspace:6 — cap 1/1 LLENO. #6 y #7 siguen en status:backlog."
-next_action: "Atender el gate plan del #5: revisar el plan que publique como comentario del issue, responder OK y EMPUJARLO a mano por cmux a workspace:6 (responder en GitHub no lo despierta)"
+you_are_here: "CINCO slices cerrados y cosechados (PR #8 → 9824d3d, PR #10 → 46a52c0, PR #13 → 6d933db, PR #15 → c178caa, PR #17 → 0514c35), más el refactor a inglés (PR #12 → 66c34ac). El #5 (UI: shell y pulso) cerró el 2026-08-19 y está cosechado: labels ya limpias (se le retiró status:in-review el 2026-08-21). Del #5 no queda residuo: worktree, rama local, rama remota, labels y sesión de cmux limpiados el 2026-08-21. Su rama local NO era la que se mergeó (línea huérfana del run de prueba de ct-step) y se descartó a conciencia: ver el gotcha. Cap 0/1 LIBRE, nada en vuelo. El #6 (UI: gente y calor) está en status:ready desde el 2026-08-21; el #7 sigue en status:backlog."
+next_action: "Despachar el #6 (UI: gente y calor) con /ct-next, y atender su gate plan cuando lo publique como comentario del issue"
 # blocked: null = NO bloqueado. Si el trabajo no puede continuar (una decisión
 # lo paró, el plan resultó falso, falta algo de fuera), NO lo escribas en prosa
 # dentro de next_action: ponlo aquí. El hook de SessionStart lo anuncia al
@@ -30,7 +30,7 @@ next_action: "Atender el gate plan del #5: revisar el plan que publique como com
 blocked: null
 # verify: la comprobación PENDIENTE que valida este trabajo AL TERMINAR — nunca
 # un hecho ya comprobado, aunque se redacte en presente.
-verify: "el plan del #5 aparece como comentario de su issue y, tras el OK, su PR contra main llega con 'Closes #5' en el cuerpo, CI verde y captura antes/después adjunta (gate visual)"
+verify: "/ct-status sale en verde (exit 0) sin residuo del #5, y /ct-next deja el #6 en status:in-progress con su worktree y su sesión de cmux vivos"
 tasks: []
 ---
 ## Current State
@@ -38,17 +38,26 @@ Epic groomeado (milestone + issues #1–#7 + labels + Project v2). Todo el BACKE
 está entregado y cosechado: #1 (esqueleto), #2 (pulso y gente), #3 (calor) y #4
 (API HTTP). `server/` sirve hoy los cuatro endpoints bajo `/api` sobre el módulo
 puro `server/src/analysis/`, con caché por (repo, ventana, HEAD, día) y el sobre
-de error tipado `{error:{code,message}}`. Empieza el FRONT: el #5 (UI: shell y
-pulso) está en vuelo en `.worktrees/5` (rama `feat/5`, cmux `workspace:6`), cap
-1/1 LLENO. `web/` venía del #1 como un stub (`<h1>Repo Pulse</h1>`), sin proxy de
-dev a la API y sin entorno DOM de test: las dos cosas las cierra el #5 en su plan
-(escritas en su "Contexto heredado"). #6 y #7 en status:backlog.
+de error tipado `{error:{code,message}}`. El FRONT arrancó: el #5 (UI: shell y
+pulso) cerró el 2026-08-19 en squash (PR #17 → 0514c35) y `web/` ya no es el stub
+del #1 — trae el proxy de dev a la API, el entorno DOM de test, los tokens del
+design system, la capa de textos en español, el cliente tipado, la cabecera, el
+bloque Pulso con overlay del periodo anterior y el panel de Tendencia y KPIs.
+Cap 0/1 LIBRE: nada en vuelo y sin residuo. El #6 (UI: gente y calor) está en
+`status:ready` y es el siguiente en el orden del §9; el #7 en `status:backlog`.
 ## Immediate Next Steps
-1. Esperar el plan del #5 como comentario del issue y revisarlo (gate plan).
-2. Tras el OK, EMPUJAR al agente a mano por cmux a `workspace:6`.
+1. Despachar el #6 con `/ct-next` (cap libre, dependencias mergeadas).
+2. Atender su gate plan: revisar el plan que publique como comentario del issue,
+   responder OK y EMPUJARLO a mano por cmux (responder en GitHub no lo despierta).
 3. En el PR, exigir el gate visual: captura antes/después y la ruta para
    reproducirlo. No lo cierra el agente.
 ## Decisions Made
+- Slice #5 cerrado el 2026-08-19 (PR #17 en squash, 0514c35), sin rechazos ni
+  reopens ni requeues. Cosechado: ready→claim 0m31, claim→release 51h03m39,
+  release→merge 1h18m14, PR +2397/−16 en 20 ficheros. Es el primer slice de la
+  familia `ui`, así que su claim→release es hoy la única cifra de esa familia con
+  merge (N=3 con el #6 y el #7 todavía sin arrancar): no promediar nada con ella.
+  Como en el #4, la cifra alta no es tiempo de trabajo — el slice esperó su gate.
 - Slice #4 cerrado el 2026-08-17 (PR #15 en squash, c178caa), sin rechazos ni
   reopens. Cosechado: ready→claim 1m38, claim→release 66h23m20 (la cifra más alta
   del epic, y no es tiempo de trabajo: el slice se despachó el 14 y cruzó el fin
@@ -122,8 +131,11 @@ dev a la API y sin entorno DOM de test: las dos cosas las cierra el #5 en su pla
   binario `claude-personal`.
 - Los labels `gate:plan`/`gate:apply` del issue marcan qué gates aplican, no si
   están cerrados: siguen puestos aunque el gate ya se haya pasado. Lo mismo con
-  el `status:in-review` de un issue ya cerrado: no es anomalía, y `/ct-next` lo
-  dice en cada corrida.
+  el `status:in-review` de un issue ya cerrado: no es anomalía mientras no se
+  haya cosechado, y `/ct-next` lo dice en cada corrida. Pero la cosecha SÍ lo
+  retira: el #2, el #3 y el #4 quedaron solo con sus `gate:*` + `type:*` +
+  `area:*`, y el #5 se alineó con ellos el 2026-08-21. Un `status:*` en un issue
+  cerrado es la señal de que ese slice aún no se ha cosechado.
 - Un hook local bloquea CUALQUIER `git push` mientras el checkout principal está
   en `main` (rama protegida) — incluido un `git push origin --delete <rama>`,
   que no toca main: lo que mira es la rama en la que estás, no la forma del
@@ -160,7 +172,25 @@ dev a la API y sin entorno DOM de test: las dos cosas las cierra el #5 en su pla
       pgrep -f claude + lsof -p <pid> -d cwd       # el del slice vive en .worktrees/<n>
   La sesión de un slice arranca además con `--dangerously-skip-permissions`
   («bypass permissions on» en su pie), la coordinadora no.
-  Reparto actual: `workspace:2` = COORDINADORA (esta), `workspace:6` = slice #5.
+  Y LOS IDENTIFICADORES NO PERSISTEN: el reparto que este gotcha traía escrito
+  (`workspace:2` = coordinadora, `workspace:6` = slice #5) ya no existe — el
+  2026-08-21 `cmux workspace list` devuelve UN solo workspace, el `workspace:1`
+  de la coordinadora de turno. Anotar aquí un reparto concreto caduca; lo que no
+  caduca es comprobar de quién es cada workspace por contenido antes de cerrarlo.
+- LA RAMA LOCAL DE UN SLICE PUEDE NO SER LA QUE SE MERGEÓ. En el #5, `feat/5`
+  local (536c54d, del 2026-08-18) y `origin/feat/5` (9249aff, del 2026-08-19)
+  son DOS LÍNEAS PARALELAS sin ancestro común por encima de 1c64f95: la local es
+  el run de prueba de `ct-step` (su primer commit lo dice: «fixture ejecutable,
+  para la prueba de ct-step») y la remota es la que entró por el PR #17. Las dos
+  implementan las mismas 8 tareas con hashes distintos y contenido distinto
+  (`git diff origin/main HEAD` en el worktree: 16 ficheros, +488/−533; ningún
+  fichero exclusivo por ninguno de los dos lados). Consecuencia para el gotcha de
+  abajo: `git diff main feat/<n>` NO sale vacío aunque el slice esté íntegramente
+  mergeado, porque compara contra la línea equivocada. La comprobación buena es
+  `git diff origin/main origin/feat/<n>` — en el #5 sale solo `.agent/STATE.md`.
+  La local se borró con `-D` el 2026-08-21 (con `-d` no habría salido: al no ser
+  ancestro de nada publicado, git la trata como no mergeada, que ahí es la
+  verdad). Si el próximo slice vuelve a dejar dos líneas, esta es la lectura.
 - BORRAR LA RAMA DE UN SLICE YA MERGEADO PIDE `-d` CON AVISO, no `-D`. Los PRs se
   mergean en SQUASH, así que `feat/<n>` nunca es ancestro de `main` y `git branch
   -d` avisa («merged to refs/remotes/origin/feat/<n>, but not yet merged to
@@ -168,9 +198,11 @@ dev a la API y sin entorno DOM de test: las dos cosas las cierra el #5 en su pla
   `git diff main feat/<n>` (dos puntos, no tres — con tres sale el diff entero del
   slice aunque esté todo mergeado). Vacío = no hay nada que rescatar.
 ## Residuo pendiente
-- Ninguno. `/ct-status` sale en verde (exit 0: nada en vuelo sin señales de vida,
-  nada por cosechar, nada de residuo) desde la cosecha del #4 el 2026-08-17. La
-  rama `respaldo-feat-2-pre-rebase` que este apartado listaba tampoco existe ya.
-  Lo único vivo en disco es `.worktrees/5` + `feat/5`, que es el slice EN VUELO,
-  no residuo.
+- Ninguno. El #5 se cosechó el 2026-08-21: labels alineadas con el #2/#3/#4,
+  `.worktrees/5` retirado, rama local `feat/5` borrada con `-D` (era la línea
+  huérfana del run de prueba, 536c54d, descartada a conciencia por decisión
+  explícita: no aportaba ningún fichero que no estuviera ya en `main`), rama
+  remota `feat/5` borrada por `gh api -X DELETE`, y sin workspace de cmux que
+  cerrar. `.worktrees/` queda vacío y no hay ninguna rama `feat/*` ni en local ni
+  en remoto.
 ## Critical Files
