@@ -1,0 +1,59 @@
+{
+  "issue": 6,
+  "task": 1,
+  "task_name": "`Heat` en los tipos y en el cliente",
+  "verdict": {
+    "ruling": "PASS",
+    "rubric": [
+      {
+        "rule": "objetivo",
+        "result": "El objetivo («`web/` sabe pedir el calor de un nivel y guardar la carpeta principal») se descompone en dos piezas y las dos estan en el diff: `fetchHeat(id, window, path?, signal?)` construye `/api/repos/{id}/heat?window={window}` y anade `&path=` solo cuando `path !== undefined` (web/src/api/client.ts:39-49), y `saveMainFolder(id, mainFolder, signal?)` hace `PUT /api/repos/{id}/settings` con cuerpo `{mainFolder}` (client.ts:51-61). Ambas URLs y la forma de respuesta `{mainFolder}` coinciden con las rutas reales del server (server/src/api/routes.ts:60-88). Nada mas se implementa.",
+        "outcome": "conforme"
+      },
+      {
+        "rule": "asercion-tdd",
+        "result": "Los dos tests que nombra el **TDD:** existen con exactamente las aserciones escritas. `asks the heat for the level it is given` llama `fetchHeat('alpha','90d','src/ui')` y exige `'/api/repos/alpha/heat?window=90d&path=src%2Fui'` (client.test.ts:54-64). `the root level travels as an empty path, not as no path` llama con `''` y sin `path` y fija el par exacto `['/api/repos/alpha/heat?window=90d&path=', '/api/repos/alpha/heat?window=90d']` (client.test.ts:66-77): es el par que discrimina raiz de sin acotar, sobre las mismas entradas y con los mismos valores esperados que el brief.",
+        "outcome": "conforme"
+      },
+      {
+        "rule": "contrato",
+        "result": "Nombre a nombre: las tres firmas del bloque Contract (client.ts) aparecen identicas en parametros, orden y retorno (`fetchHeat` client.ts:39-44, `saveMainFolder` client.ts:51-55, `request` client.ts:70-73 con `options?: { signal?: AbortSignal; method?: 'PUT'; body?: unknown }`); los dos call sites existentes pasan a `request<T>(url, { signal })` (client.ts:19 y 28-30); las URLs de calor y settings son literalmente las del brief y `path` se omite solo con `undefined` (client.ts:45). Los interfaces `HeatEntry` y `Heat` de types.ts:87-107 reproducen campo a campo el bloque Contract y coinciden con el payload real del server (server/src/analysis/heat.ts:9-32 mas el `window` que anade la ruta). Una sola desviacion, reportada como `low`: los headers JSON se enganchan a la presencia de `body` en vez de a `method` Y `body`.",
+        "outcome": "conforme"
+      },
+      {
+        "rule": "decisiones-cerradas",
+        "result": "Tres filas tocan este diff y las tres se cumplen. «Frontera de tipos»: `Heat` y `HeatEntry` se declaran a mano en `web/src/api/types.ts` y no hay ningun import de `server/` (types.ts:1-7 conserva la nota de sincronizacion manual). «Fuente de los %»: `percent` se declara como dato entrante y no hay ningun calculo de porcentaje en el diff. «Fuente del mainFolder»: `mainFolder` viaja en el tipo `Heat` y en el `PUT`; no aparece `localStorage` en ninguna linea. El resto de filas (drill-down, tope de filas, tokens, pie del Calor, geometria de series) no tienen sujeto en esta tarea.",
+        "outcome": "conforme"
+      },
+      {
+        "rule": "patrones",
+        "result": "El ejemplar que juega el mismo papel es `web/src/api/client.ts` (sobre de error tipado) y el diff sigue su idiom: funcion exportada delgada que delega en `request`, JSDoc explicando la decision, error unico por `ApiError`. El documento de reglas que el plan nombra es `AGENTS.md`, y la regla que aplica aqui es la de la linea 34-36 («El codigo se escribe SIEMPRE en ingles... nombres de test y mensajes de error»): identificadores, comentarios y los cuatro nombres de test nuevos estan en ingles. La otra regla nombrada, `docs/design/repo-pulse-mockup.html`, no tiene sujeto: esta tarea no pinta DOM. La frontera `web/` no importa de `server/` (AGENTS.md:98-100) tambien se respeta.",
+        "outcome": "conforme"
+      },
+      {
+        "rule": "manipulacion-tests",
+        "result": "No aplica: en el unico fichero de test tocado (`web/src/api/client.test.ts`) la unica linea `-` es la del import (`-import { ApiError, fetchRepos, fetchSummary } from './client'`), que no es una asercion, un caso ni un test. Ninguno de los cuatro tests preexistentes se borra, relaja ni reescribe; los `expect.anything()` de las lineas 20 y 29 ya estaban y llegan como contexto, no como cambio.",
+        "outcome": "no-aplica"
+      },
+      {
+        "rule": "fixture-theater",
+        "result": "El comportamiento prometido lo produce codigo de produccion: las URLs las construye `fetchHeat` en client.ts:45-48 y el `PUT` con su cuerpo lo compone `saveMainFolder` mas el `request` de client.ts:76-85. El doble solo sustituye `fetch`, la frontera de red, con `vi.stubGlobal` — el mismo patron que ya usaban los tests preexistentes — y las aserciones leen los argumentos que la produccion le pasa, no valores fabricados por el test. No hay expected hard-codeado sin linea de produccion detras.",
+        "outcome": "conforme"
+      },
+      {
+        "rule": "alcance",
+        "result": "Dentro de los tres ficheros declarados, cada bloque escrito responde a una frase de la tarea: los dos interfaces al bloque Contract de types.ts, las dos funciones nuevas y el segundo parametro de `request` al bloque Contract de client.ts, y los cuatro tests a la lista **Tests:**. No hay refactor, rename ni helper adicional; no se toca `server/` ni `web/src/pulse-points.ts` (renombrado que pertenece a otra tarea), y nada de lo que `### Out of scope` nombra aparece.",
+        "outcome": "conforme"
+      }
+    ],
+    "findings": [
+      {
+        "rule": "contrato",
+        "severity": "low",
+        "what": "El brief condiciona los headers JSON a la presencia conjunta de `method` y `body`; la implementacion los engancha solo a `body` (el spread de `method` es independiente del de `body`/`headers`). En los unicos call sites del diff no hay diferencia observable — `saveMainFolder` pasa siempre los dos, y el caso que el implementador dice evitar (un PUT sin cuerpo anunciando `Content-Type`) tampoco anadiria headers bajo la lectura literal del brief, porque `body` faltaria. La divergencia real es el caso inverso, `body` sin `method`: el brief no anade nada (el cuerpo se perderia en silencio) y la implementacion manda cuerpo y headers sin metodo. Ningun llamador lo ejercita hoy y el tipo no obliga a co-presencia, asi que es una desviacion de la letra del bloque Contract sin efecto en el contrato observable.",
+        "where": "web/src/api/client.ts:78-84",
+        "evidence": "El brief dice: «con `method` y `body` presentes anade `headers: {'Content-Type': 'application/json'}` y `body: JSON.stringify(options.body)`». El diff escribe: «...(options?.method === undefined ? {} : { method: options.method }), ...(options?.body === undefined ? {} : { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(options.body) })»"
+      }
+    ]
+  }
+}

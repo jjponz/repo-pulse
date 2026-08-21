@@ -1,4 +1,4 @@
-import type { ApiErrorCode, Clone, Summary, TimeWindow } from './types'
+import type { ApiErrorCode, Clone, Heat, Summary, TimeWindow } from './types'
 
 /**
  * Thrown by every function below for a response that is not `ok`, or one that
@@ -16,7 +16,7 @@ export class ApiError extends Error {
 }
 
 export async function fetchRepos(signal?: AbortSignal): Promise<Clone[]> {
-  const body = await request<{ repos: Clone[] }>('/api/repos', signal)
+  const body = await request<{ repos: Clone[] }>('/api/repos', { signal })
   return body.repos
 }
 
@@ -25,7 +25,39 @@ export async function fetchSummary(
   window: TimeWindow,
   signal?: AbortSignal,
 ): Promise<Summary> {
-  return request<Summary>(`/api/repos/${encodeURIComponent(id)}/summary?window=${window}`, signal)
+  return request<Summary>(`/api/repos/${encodeURIComponent(id)}/summary?window=${window}`, {
+    signal,
+  })
+}
+
+/**
+ * Asks for the heat of one level. `path` is left out of the URL only when it is
+ * `undefined`: `''` is the root of the clone, a legitimate level, and it
+ * travels as an empty value so the server can tell it apart from "no level
+ * asked for".
+ */
+export async function fetchHeat(
+  id: string,
+  window: TimeWindow,
+  path?: string,
+  signal?: AbortSignal,
+): Promise<Heat> {
+  const level = path === undefined ? '' : `&path=${encodeURIComponent(path)}`
+  return request<Heat>(`/api/repos/${encodeURIComponent(id)}/heat?window=${window}${level}`, {
+    signal,
+  })
+}
+
+export async function saveMainFolder(
+  id: string,
+  mainFolder: string,
+  signal?: AbortSignal,
+): Promise<{ mainFolder: string }> {
+  return request<{ mainFolder: string }>(`/api/repos/${encodeURIComponent(id)}/settings`, {
+    signal,
+    method: 'PUT',
+    body: { mainFolder },
+  })
 }
 
 /**
@@ -35,10 +67,22 @@ export async function fetchSummary(
  * error, or an aborted signal — is reported the same way, with `code`
  * `'internal'`.
  */
-async function request<T>(url: string, signal?: AbortSignal): Promise<T> {
+async function request<T>(
+  url: string,
+  options?: { signal?: AbortSignal; method?: 'PUT'; body?: unknown },
+): Promise<T> {
   let response: Response
   try {
-    response = await fetch(url, { signal })
+    response = await fetch(url, {
+      signal: options?.signal,
+      ...(options?.method === undefined ? {} : { method: options.method }),
+      ...(options?.body === undefined
+        ? {}
+        : {
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(options.body),
+          }),
+    })
   } catch (error) {
     throw new ApiError('internal', messageOf(error))
   }
