@@ -91,6 +91,66 @@ function footer(): string {
   return screen.getByText(/el % es sobre/).textContent ?? ''
 }
 
+function selector(): HTMLSelectElement {
+  return screen.getByRole('combobox', { name: 'Carpeta principal' }) as HTMLSelectElement
+}
+
+/** The percent cell of each row, in order: bar, name, commits, percent, chevron. */
+function rowPercents(): string[] {
+  return screen.getAllByTestId('heat-row').map((row) => row.children[3]?.textContent ?? '')
+}
+
+function okResponse(body: unknown): Promise<Response> {
+  return Promise.resolve({ ok: true, json: () => Promise.resolve(body) } as unknown as Response)
+}
+
+/**
+ * The same tree seen from three saved main folders. What the main folder moves
+ * is the denominator, so the very same level draws other percentages: with
+ * `src` saved, `pago` is half of its 300 commits; with `src/checkout` saved, it
+ * is all 150 of that folder.
+ */
+const SCOPES: Record<string, { commits: number; levels: Record<string, HeatEntry[]> }> = {
+  '': { commits: 400, levels: { '': [dir('src', 300, 75), dir('docs', 100, 25)] } },
+  src: { commits: 300, levels: TREE },
+  'src/checkout': {
+    commits: 150,
+    levels: {
+      'src/checkout': [dir('pago', 150, 100)],
+      'src/checkout/pago': [file('pago.ts', 90, 60), file('total.ts', 60, 40)],
+    },
+  },
+}
+
+/**
+ * A `fetch` double with settings behind it: the `PUT` stores the main folder and
+ * every `GET` after it answers from that folder's scope. That is where "it is
+ * remembered when the repo is reopened" lives — in the server, so a UI that
+ * stores nothing of its own still starts at the saved folder.
+ */
+function stubServer(): { urls: string[]; bodies: string[] } {
+  const urls: string[] = []
+  const bodies: string[] = []
+  let saved = MAIN_FOLDER
+  vi.stubGlobal('fetch', (url: string, options?: { method?: string; body?: string }) => {
+    urls.push(url)
+    if (options?.method === 'PUT') {
+      const body = options.body ?? ''
+      bodies.push(body)
+      saved = (JSON.parse(body) as { mainFolder: string }).mainFolder
+      return okResponse({ mainFolder: saved })
+    }
+    const scope = SCOPES[saved]
+    const path = pathOf(url) ?? saved
+    return okResponse({
+      ...levelOf(path, scope?.levels[path] ?? []),
+      mainFolder: saved,
+      mainFolderCommits: scope?.commits ?? 0,
+    })
+  })
+  return { urls, bodies }
+}
+
 test('the drill-down goes down to files and the breadcrumb comes back to any level', async () => {
   stubHeat(TREE)
 
@@ -208,4 +268,145 @@ test('a level nobody touched says so instead of drawing rows', async () => {
   expect(footer()).toBe(
     'El árbol sigue ahí; en esta ventana nadie lo ha tocado. · el % es sobre el total de la carpeta principal.',
   )
+})
+
+test('choosing another main folder rescopes the percentages and is remembered', async () => {
+  const { urls, bodies } = stubServer()
+
+  const first = render(<HeatBlock repoId="alpha" repoName="alpha" window="12m" />)
+
+  await waitFor(() => {
+    expect(rowNames()).toEqual(['checkout/', 'ui/'])
+  })
+  expect(selector().value).toBe('src')
+
+  // Two levels down before saving, so a level that is NOT re-anchored is a
+  // level the assertions below would see drawn.
+  fireEvent.click(row('checkout/'))
+  await waitFor(() => {
+    expect(rowNames()).toEqual(['pago/'])
+  })
+  fireEvent.click(row('pago/'))
+  await waitFor(() => {
+    expect(rowNames()).toEqual(['pago.ts', 'total.ts'])
+  })
+  expect(rowPercents()).toEqual(['30%', '20%'])
+
+  fireEvent.change(selector(), { target: { value: 'src/checkout' } })
+
+  await waitFor(() => {
+    expect(rowNames()).toEqual(['pago/'])
+  })
+  expect(urls.filter((url) => url.includes('/settings'))).toEqual(['/api/repos/alpha/settings'])
+  expect(bodies).toEqual(['{"mainFolder":"src/checkout"}'])
+  // The server re-anchors the level, so the reload asks for no level at all —
+  // and the same tree comes back over the smaller denominator.
+  expect(pathOf(urls.at(-1) ?? '')).toBeNull()
+  expect(rowPercents()).toEqual(['100%'])
+  expect(footer()).toBe(
+    '1 hijo tocado · 150 commits aquí · total de la carpeta principal 150 · el % es sobre el total de la carpeta principal.',
+  )
+
+  // Reopening the repo: a block mounted from scratch starts at the saved
+  // folder because the server remembers it, not because the UI kept it.
+  first.unmount()
+  render(<HeatBlock repoId="alpha" repoName="alpha" window="12m" />)
+
+  await waitFor(() => {
+    expect(rowNames()).toEqual(['pago/'])
+  })
+  expect(selector().value).toBe('src/checkout')
+  expect(rowPercents()).toEqual(['100%'])
+
+  // Saving from a re-anchored level, where the level is already "none asked
+  // for": nothing about the level changes and the block still has to reload.
+  // The whole repo is the only way out of the folder, because the selector
+  // offers what the level shows and nothing above it.
+  expect([...selector().options].map((option) => option.value)).toEqual([
+    '',
+    'src/checkout',
+    'src/checkout/pago',
+  ])
+
+  fireEvent.change(selector(), { target: { value: '' } })
+
+  await waitFor(() => {
+    expect(rowNames()).toEqual(['src/', 'docs/'])
+  })
+  expect(bodies).toEqual(['{"mainFolder":"src/checkout"}', '{"mainFolder":""}'])
+  expect(rowPercents()).toEqual(['75%', '25%'])
+  expect(selector().value).toBe('')
+})
+
+test('a fallback says the saved folder is gone and which one is used', async () => {
+  let fallback = true
+  vi.stubGlobal('fetch', (url: string) =>
+    okResponse({
+      ...levelOf(pathOf(url) ?? '', [dir('src', 240, 80), dir('docs', 60, 20)]),
+      mainFolder: '',
+      fallback,
+    }),
+  )
+
+  const gone = render(<HeatBlock repoId="alpha" repoName="alpha" window="12m" />)
+
+  // The saved folder is not in HEAD any more, so the server scoped the heat to
+  // the root and the block says both halves of that.
+  expect(
+    await screen.findByText(
+      'La carpeta principal guardada ya no existe en HEAD: el calor se acota a todo el repo.',
+    ),
+  ).toBeTruthy()
+  expect(selector().value).toBe('')
+  expect(screen.getByRole('option', { name: 'todo el repo' })).toBeTruthy()
+
+  fallback = false
+  gone.unmount()
+  render(<HeatBlock repoId="alpha" repoName="alpha" window="12m" />)
+
+  // Nothing warns while the folder being used is the one that was saved.
+  await waitFor(() => {
+    expect(rowNames()).toEqual(['src/', 'docs/'])
+  })
+  expect(screen.queryByText(/ya no existe en HEAD/)).toBeNull()
+})
+
+test('a rejected save keeps the level and reports its code', async () => {
+  const urls: string[] = []
+  vi.stubGlobal('fetch', (url: string, options?: { method?: string }) => {
+    urls.push(url)
+    if (options?.method === 'PUT') {
+      return Promise.resolve({
+        ok: false,
+        json: () =>
+          Promise.resolve({ error: { code: 'invalid-body', message: 'mainFolder must be a string' } }),
+      } as unknown as Response)
+    }
+    const path = pathOf(url) ?? MAIN_FOLDER
+    return okResponse(levelOf(path, TREE[path] ?? []))
+  })
+
+  render(<HeatBlock repoId="alpha" repoName="alpha" window="12m" />)
+
+  await waitFor(() => {
+    expect(rowNames()).toEqual(['checkout/', 'ui/'])
+  })
+  fireEvent.click(row('checkout/'))
+  await waitFor(() => {
+    expect(rowNames()).toEqual(['pago/'])
+  })
+  const asked = urls.length
+
+  fireEvent.change(selector(), { target: { value: '' } })
+
+  // The envelope's code reaches the screen; its message does not.
+  expect((await screen.findByRole('alert')).textContent).toBe(
+    'No se ha podido guardar la carpeta principal (invalid-body).',
+  )
+  // What is saved rules: the level does not move, no level is asked for again
+  // and the selector goes back to the folder the server still has.
+  expect(urls.slice(asked)).toEqual(['/api/repos/alpha/settings'])
+  expect(rowNames()).toEqual(['pago/'])
+  expect(crumbLabels()).toEqual(['src', 'checkout'])
+  expect(selector().value).toBe('src')
 })

@@ -1,8 +1,8 @@
 import { Fragment, useEffect, useState } from 'react'
-import { ApiError, fetchHeat } from './api/client'
+import { ApiError, fetchHeat, saveMainFolder } from './api/client'
 import type { ApiErrorCode, Heat, TimeWindow } from './api/types'
-import { heatFooter, noHeatHeadline } from './format'
-import { breadcrumb, heatRows } from './heat-rows'
+import { fallbackNotice, heatFooter, mainFolderLabel, noHeatHeadline } from './format'
+import { breadcrumb, heatRows, mainFolderOptions } from './heat-rows'
 import type { HeatRow } from './heat-rows'
 
 export interface HeatBlockProps {
@@ -22,11 +22,16 @@ export default function HeatBlock({ repoId, repoName, window }: HeatBlockProps) 
   const [path, setPath] = useState<string | undefined>(undefined)
   const [heat, setHeat] = useState<Heat | null>(null)
   const [error, setError] = useState<ApiErrorCode | null>(null)
+  // Bumped by a save so the level reloads even when `path` did not change,
+  // which is every save made from an already re-anchored level.
+  const [revision, setRevision] = useState(0)
+  const [saveError, setSaveError] = useState<ApiErrorCode | null>(null)
 
   useEffect(() => {
     const controller = new AbortController()
     setHeat(null)
     setError(null)
+    setSaveError(null)
     void loadHeat(controller.signal)
     return () => {
       controller.abort()
@@ -42,7 +47,23 @@ export default function HeatBlock({ repoId, repoName, window }: HeatBlockProps) 
         setError(codeOf(caught))
       }
     }
-  }, [repoId, window, path])
+  }, [repoId, window, path, revision])
+
+  /**
+   * Saves the folder and only then moves: the level goes back to "none asked
+   * for" so the server re-anchors it inside the new folder. A rejected save
+   * leaves both the level and the drawing alone — what is saved rules.
+   */
+  async function chooseMainFolder(mainFolder: string): Promise<void> {
+    try {
+      await saveMainFolder(repoId, mainFolder)
+    } catch (caught) {
+      setSaveError(codeOf(caught))
+      return
+    }
+    setPath(undefined)
+    setRevision((n) => n + 1)
+  }
 
   const crumbs = heat === null ? [] : breadcrumb(repoName, heat.mainFolder, heat.path)
   const rows = heat === null ? [] : heatRows(heat.children)
@@ -112,6 +133,46 @@ export default function HeatBlock({ repoId, repoName, window }: HeatBlockProps) 
               </Fragment>
             ))}
           </nav>
+          {heat.fallback && (
+            <div style={{ fontSize: '16px', color: 'var(--color-accent-2-700)' }}>
+              {fallbackNotice(heat.mainFolder)}
+            </div>
+          )}
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: '10px' }}>
+            <span
+              style={{
+                fontSize: '13px',
+                letterSpacing: '.22em',
+                textTransform: 'uppercase',
+                color: 'var(--color-neutral-600)',
+              }}
+            >
+              carpeta principal
+            </span>
+            <select
+              aria-label="Carpeta principal"
+              value={heat.mainFolder}
+              onChange={(event) => {
+                void chooseMainFolder(event.target.value)
+              }}
+              style={{
+                background: 'transparent',
+                border: 0,
+                borderBottom: '1px solid var(--color-text)',
+                fontSize: '16px',
+                color: 'var(--color-text)',
+              }}
+            >
+              {mainFolderOptions(heat.mainFolder, heat.path, heat.children).map((option) => (
+                <option key={option} value={option}>
+                  {mainFolderLabel(option)}
+                </option>
+              ))}
+            </select>
+          </div>
+          {saveError !== null && (
+            <p role="alert">No se ha podido guardar la carpeta principal ({saveError}).</p>
+          )}
           {rows.length === 0 ? (
             <div style={{ padding: '16px 0 6px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
               <div style={{ fontSize: '26px', fontWeight: 600 }}>{noHeatHeadline(window)}</div>
