@@ -1,6 +1,6 @@
 import type { Summary } from './api/types'
 import { bucketNoun, formatEdge, previousWindowLabel } from './format'
-import { PULSE_BASELINE, PULSE_WIDTH, areaPoints, polylinePoints, seriesMax } from './pulse-points'
+import { PULSE_GEOMETRY, areaPoints, polylinePoints, seriesMax } from './series-points'
 
 export interface PulseProps {
   summary: Summary
@@ -10,7 +10,7 @@ export interface PulseProps {
  * The pulse block of the mockup: commits per bucket, with the equally long
  * previous window in grey behind them. Both series are scaled against one
  * shared maximum — that is the whole point of the overlay, and the arithmetic
- * lives in `web/src/pulse-points.ts`. On the `all` window there is no
+ * lives in `web/src/series-points.ts`. On the `all` window there is no
  * comparable previous period, so the grey series and its legend disappear.
  */
 export default function Pulse({ summary }: PulseProps) {
@@ -34,7 +34,7 @@ export default function Pulse({ summary }: PulseProps) {
         </div>
       </div>
       <svg
-        viewBox={`0 0 ${PULSE_WIDTH} 200`}
+        viewBox={`0 0 ${PULSE_GEOMETRY.width} 200`}
         preserveAspectRatio="none"
         role="img"
         aria-label="Pulso"
@@ -61,9 +61,9 @@ export default function Pulse({ summary }: PulseProps) {
         />
         <line
           x1="0"
-          y1={PULSE_BASELINE}
-          x2={PULSE_WIDTH}
-          y2={PULSE_BASELINE}
+          y1={PULSE_GEOMETRY.baseline}
+          x2={PULSE_GEOMETRY.width}
+          y2={PULSE_GEOMETRY.baseline}
           stroke="var(--color-text)"
           strokeWidth="1.5"
           vectorEffect="non-scaling-stroke"
