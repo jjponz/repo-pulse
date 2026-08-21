@@ -1,4 +1,4 @@
-import type { BucketSize, TimeWindow, Trend } from './api/types'
+import type { BucketSize, Concentration, TimeWindow, Trend } from './api/types'
 
 /**
  * The single place the API's English payload values become the Spanish text
@@ -100,4 +100,43 @@ export function trendSentence(trend: Trend, commits: number): string {
       : `0 commits antes · ${commits} ahora — nada que comparar`
   }
   return `${trend.previousWindowCommits} commits antes · ${commits} ahora`
+}
+
+export function concentrationSentence(concentration: Concentration, commits: number): string {
+  if (commits === 0) return 'Nadie ha tocado el repo en esta ventana.'
+  const { authors, percentage } = concentration
+  return authors === 1
+    ? `1 persona concentra ${percentage}% de los commits`
+    : `${authors} personas concentran ${percentage}% de los commits`
+}
+
+export function windowLabelLong(window: TimeWindow): string {
+  switch (window) {
+    case '30d':
+      return '30 días'
+    case '90d':
+      return '90 días'
+    case '12m':
+      return '12 meses'
+    case 'all':
+      return 'todo el historial'
+  }
+}
+
+export function noHeatHeadline(window: TimeWindow): string {
+  return `Ninguna carpeta tocada en ${windowLabelLong(window)}`
+}
+
+export function mainFolderLabel(mainFolder: string): string {
+  return mainFolder === '' ? 'todo el repo' : mainFolder
+}
+
+export function heatFooter(children: number, hereCommits: number, mainFolderCommits: number): string {
+  if (children === 0) return 'El árbol sigue ahí; en esta ventana nadie lo ha tocado.'
+  const touched = children === 1 ? '1 hijo tocado' : `${children} hijos tocados`
+  return `${touched} · ${hereCommits} commits aquí · total de la carpeta principal ${mainFolderCommits}`
+}
+
+export function fallbackNotice(mainFolder: string): string {
+  return `La carpeta principal guardada ya no existe en HEAD: el calor se acota a ${mainFolderLabel(mainFolder)}.`
 }

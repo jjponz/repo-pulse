@@ -1,17 +1,23 @@
 import { expect, test } from 'vitest'
 import {
   bucketNoun,
+  concentrationSentence,
+  fallbackNotice,
   formatDay,
   formatEdge,
   formatMonth,
+  heatFooter,
+  mainFolderLabel,
+  noHeatHeadline,
   previousWindowLabel,
   relativeDays,
   trendArrow,
   trendHeadline,
   trendSentence,
   windowLabel,
+  windowLabelLong,
 } from './format'
-import type { Trend } from './api/types'
+import type { Concentration, Trend } from './api/types'
 
 test('the full window declares there is nothing to compare', () => {
   const base: Trend = { comparable: false, percentage: null, previousWindowCommits: null, reason: null }
@@ -98,4 +104,47 @@ test('the bucket noun names the bucket size', () => {
 test('formatDay and formatMonth render in UTC', () => {
   expect(formatDay('2026-08-13T23:30:00Z')).toBe('13 ago 2026')
   expect(formatMonth('2026-08-13T23:30:00Z')).toBe('ago 2026')
+})
+
+test('one author concentrating is singular, two are plural', () => {
+  expect(concentrationSentence({ authors: 1, percentage: 80 }, 42)).toBe('1 persona concentra 80% de los commits')
+  expect(concentrationSentence({ authors: 2, percentage: 80 }, 42)).toBe('2 personas concentran 80% de los commits')
+})
+
+test('with no commits nobody has touched the repo', () => {
+  const concentration: Concentration = { authors: 0, percentage: 0 }
+
+  expect(concentrationSentence(concentration, 0)).toBe('Nadie ha tocado el repo en esta ventana.')
+})
+
+test('the long label of the full window is the whole history', () => {
+  expect(windowLabelLong('30d')).toBe('30 días')
+  expect(windowLabelLong('90d')).toBe('90 días')
+  expect(windowLabelLong('12m')).toBe('12 meses')
+  // `windowLabel` says just `todo` for the same window; the headline needs the long one.
+  expect(windowLabelLong('all')).toBe('todo el historial')
+  expect(noHeatHeadline('all')).toBe('Ninguna carpeta tocada en todo el historial')
+})
+
+test('the root reads as the whole repo', () => {
+  expect(mainFolderLabel('')).toBe('todo el repo')
+  expect(mainFolderLabel('web/src')).toBe('web/src')
+})
+
+test('one touched child is singular, two are plural', () => {
+  expect(heatFooter(1, 12, 340)).toBe('1 hijo tocado · 12 commits aquí · total de la carpeta principal 340')
+  expect(heatFooter(2, 12, 340)).toBe('2 hijos tocados · 12 commits aquí · total de la carpeta principal 340')
+})
+
+test('with no touched children the footer says the tree is still there', () => {
+  expect(heatFooter(0, 0, 340)).toBe('El árbol sigue ahí; en esta ventana nadie lo ha tocado.')
+})
+
+test('the fallback notice names the folder it fell back to', () => {
+  expect(fallbackNotice('web/src')).toBe(
+    'La carpeta principal guardada ya no existe en HEAD: el calor se acota a web/src.',
+  )
+  expect(fallbackNotice('')).toBe(
+    'La carpeta principal guardada ya no existe en HEAD: el calor se acota a todo el repo.',
+  )
 })
