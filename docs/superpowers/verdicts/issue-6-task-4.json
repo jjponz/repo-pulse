@@ -1,0 +1,51 @@
+{
+  "issue": 6,
+  "task": 4,
+  "task_name": "`heat-rows.ts`: filas, breadcrumb y opciones de carpeta",
+  "verdict": {
+    "ruling": "PASS",
+    "rubric": [
+      {
+        "rule": "objetivo",
+        "result": "El objetivo pide que la aritmetica y la navegacion del Calor sean funciones puras pineables sin DOM. El diff crea `web/src/heat-rows.ts` con `HEAT_ROW_LIMIT`, `heatRows`, `breadcrumb` y `mainFolderOptions`, cuyo unico import es `import type { HeatEntry } from './api/types'`: ni React, ni `fetch`, ni lectura de reloj. `web/src/heat-rows.test.ts` las pina con strings exactos usando solo `vitest`, sin renderizar nada. Las dos mitades del objetivo (aritmetica: `slice`, ancho de barra, umbral de calor; navegacion: breadcrumb y opciones de carpeta) estan en el diff.",
+        "outcome": "conforme"
+      },
+      {
+        "rule": "asercion-tdd",
+        "result": "El test nombrado literalmente por el brief existe y conserva intactas las cifras dictadas: `heatRows([dir('web', 40), dir('server', 36), dir('docs', 1)])` con barWidth `['100.0%', '90.0%', '2.5%']` y hottest `[true, true, false]` (heat-rows.test.ts:14-19). El hallazgo `medium` del intento 1 queda CERRADO, comprobado con los numeros y no con la intencion declarada: el caso anadido dentro del mismo test, `heatRows([dir('web', 100), dir('docs', 1)])`, tiene `top = 100`, asi que la fila fria da `1/100*100 = 1`, `(1).toFixed(1) === '1.0%'` sin el clamp y `Math.max(2, 1) = 2 -> '2.0%'` con el; el test espera `['100.0%', '2.0%']`, luego borrar `Math.max(2, ...)` de `heat-rows.ts:25` hace fallar esta asercion. El suelo del 2% con `top > 0` queda por tanto discriminado, separado de la rama `top === 0` que pina el otro test. El `hottest` del caso nuevo (`1 >= 100*0.9` es false, `100 >= 90` es true) coincide con `[true, false]`. El borde del 0,9 sigue pineado en su valor exacto (36 = 40*0,9 entra, 1 no). Los valores del brief no se han tocado.",
+        "outcome": "conforme"
+      },
+      {
+        "rule": "contrato",
+        "result": "Comparado simbolo por simbolo contra el bloque Contract: `HEAT_ROW_LIMIT = 8` con el valor literal; `HeatRow extends HeatEntry` con `barWidth: string` y `hottest: boolean`; `Crumb { label: string; path: string }`; las tres firmas con los mismos nombres, orden de parametros y tipos de retorno (`readonly HeatEntry[]` -> `HeatRow[]`, `(string, string, string)` -> `Crumb[]`, `(string, string, readonly HeatEntry[])` -> `string[]`). Las tres reglas cerradas se implementan al pie de la letra: `top` = percent de la primera fila tras `slice(0, HEAT_ROW_LIMIT)`, `barWidth: top === 0 ? '2.0%' : `${Math.max(2, (row.percent / top) * 100).toFixed(1)}%``, `hottest: top > 0 && row.percent >= top * 0.9`; primer `Crumb` exactamente `{label: mainFolder === '' ? repoName : mainFolder, path: mainFolder}` y los siguientes acumulando desde la raiz del clon; orden de opciones '' -> paths no vacios del breadcrumb -> `mainFolder` -> hijos `dir` como `${path}/${name}` (o `name` con `path === ''`), deduplicado con `new Set`, que conserva la primera insercion y cumple el 'si aun no esta'. Recalculadas a mano las cinco aserciones de `breadcrumb`/`mainFolderOptions` contra la implementacion: coinciden todas. El codigo de produccion es identico al del intento 1 (mismas lineas que el veredicto anterior citaba textualmente: `options.push(mainFolder)`, `breadcrumb('', mainFolder, path)`, la rama `path.startsWith(...) ? ... : ''`); no hay en el diff ninguna variacion de produccion.",
+        "outcome": "conforme"
+      },
+      {
+        "rule": "decisiones-cerradas",
+        "result": "Filas que este diff toca: 'Frontera de tipos' (solo `import type ... from './api/types'`, ni un import de `server/`); 'Fuente de los %' (se consume el `percent` entero del server y solo se derivan anchos, ningun porcentaje se recalcula); 'Tope de filas' (8, `rows.slice(0, HEAT_ROW_LIMIT)`); 'Selector de carpeta principal' (las opciones son la raiz `''`, los niveles del breadcrumb y los hijos `kind === 'dir'`, sin listado inventado). El caso anadido en la correccion no bordea ninguna fila: es aritmetica del mismo `barWidth` que ya dicta el contrato. Las demas filas (drill-down en Heat.tsx, filas de fichero como div, Gente, geometria de series, tokens, pie del Calor) no tienen nada en este diff. Ninguna reabierta.",
+        "outcome": "conforme"
+      },
+      {
+        "rule": "patrones",
+        "result": "Vara real: `Rules to obey: AGENTS.md` y `docs/design/repo-pulse-mockup.html`. Cumple lo que le aplica de AGENTS.md: 'El codigo se escribe SIEMPRE en ingles. Identificadores ..., comentarios, nombres de test' — identificadores, comentarios y los siete nombres de test estan en ingles, incluidos los comentarios anadidos en la correccion; 'Tests con Vitest junto al codigo: `*.test.ts`'; 'en `web/` no lo llevan [el sufijo .js]' — `'./heat-rows'`, `'./api/types'`; 'web/ NO importa de server/' (seccion 'Frontera web/ <-> server/'); `import type` por `verbatimModuleSyntax` y `rows[0]?.percent ?? 0` por `noUncheckedIndexedAccess`. La maqueta escribe la misma formula del ancho (`Math.max(2,` en docs/design/repo-pulse-mockup.html:389). Exemplar `web/src/series-points.test.ts`: su test 'a geometry with another baseline scales to that baseline' es exactamente el idiom que usa la correccion — dos casos en un mismo `test`, el segundo con su comentario explicando que borde pina ('The pair pins that the default did not move'). La correccion no introduce ningun idiom ajeno. `eslint.config.js` es solo recommended y no hay prettier, asi que no hay regla escrita que la linea larga de `breadcrumb` contradiga.",
+        "outcome": "conforme"
+      },
+      {
+        "rule": "manipulacion-tests",
+        "result": "No aplica: el diff son dos ficheros nuevos (`new file mode 100644`, `--- /dev/null`) y no contiene ni una linea `-` de contenido. No hay ningun test preexistente que pudiera quedar relajado. En cuanto a la correccion misma, solo suma aserciones (`steep`, dos `expect` nuevos) y no borra, relaja ni reescribe ninguna de las que ya habia: las cifras dictadas por el brief (40, 36, 1 -> '100.0%', '90.0%', '2.5%', hottest true/true/false) siguen literalmente en heat-rows.test.ts:14-19.",
+        "outcome": "no-aplica"
+      },
+      {
+        "rule": "fixture-theater",
+        "result": "El comportamiento lo produce codigo de produccion: `heat-rows.ts` contiene el `slice(0, HEAT_ROW_LIMIT)`, la formula del ancho con su `Math.max(2, ...)`, el `top > 0 && percent >= top * 0.9`, el recorrido de segmentos del breadcrumb y la deduplicacion de opciones. Los unicos helpers del test (`dir`, `file`) son constructores de `HeatEntry` de cuatro campos, no dobles ni stubs, y los valores esperados son strings exactos comparados contra el retorno de las funciones reales. El caso anadido en la correccion es precisamente lo contrario de teatro: es el unico que hace depender el verde de una linea de produccion (`Math.max(2, ...)`) que antes ningun test necesitaba.",
+        "outcome": "conforme"
+      },
+      {
+        "rule": "alcance",
+        "result": "Dentro de los dos ficheros declarados no hay nada que el texto de la tarea no pida: la constante, los dos interfaces y las tres funciones del bloque Contract, y exactamente los siete tests que enumera `**Tests:**`, con sus nombres literales y sin ninguno anadido ni renombrado (el log de controles confirma 7 tests en `src/heat-rows.test.ts`). La correccion se quedo dentro del test que ya existia, no creo un octavo, y no toco el codigo de produccion. Nada de `server/`, ningun componente, ningun estado no feliz del #7, nada del DOM ni del selector (otras tareas del slice). La rama `path.startsWith(...) ? ... : ''` de `breadcrumb` es la lectura literal de 'un Crumb por cada segmento de path por debajo de mainFolder' cuando no hay ninguno, no alcance extra.",
+        "outcome": "conforme"
+      }
+    ],
+    "findings": []
+  }
+}
