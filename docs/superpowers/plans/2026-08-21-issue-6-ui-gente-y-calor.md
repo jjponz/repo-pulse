@@ -81,7 +81,7 @@ Rules to obey: `AGENTS.md` (código en inglés, textos de UI en español, fronte
 | `web/src/series-points.ts` | create (rename de `pulse-points.ts`) | `Pulse.tsx`, `People.tsx` | Current state + Contract (Task 2) |
 | `web/src/series-points.test.ts` | create (rename) | — | none (tests by TDD) |
 | `web/src/pulse-points.ts` | delete (renombrado) | — | none |
-| `web/src/pulse-points.test.ts` | delete (renombrado) | — | none |
+| `web/src/pulse-points.test.ts` | delete (git lo presenta como rename) | — | none |
 | `web/src/Pulse.tsx` | modify | `App.tsx` | Call site (Task 2) |
 | `web/src/format.ts` | modify | `People.tsx`, `Heat.tsx` | Contract (Task 3) |
 | `web/src/format.test.ts` | modify | — | none (tests by TDD) |
@@ -196,10 +196,10 @@ llama a `fetch` con `/api/repos/alpha/heat?window=90d&path=src%2Fui`; y
 llama con `…&path=` y `fetchHeat('alpha', '90d')` llama SIN `path`: es el par que discrimina
 «raíz» de «sin acotar». Luego el mínimo verde.
 
-**Tests:** añadidos: `asks the heat for the level it is given`,
-`the root level travels as an empty path, not as no path`,
-`saves the main folder with a PUT and a JSON body`,
-`a rejected main folder surfaces its code` (sobre `invalid-body`).
+**Tests:** añadidos: 'asks the heat for the level it is given',
+'the root level travels as an empty path, not as no path',
+'saves the main folder with a PUT and a JSON body',
+'a rejected main folder surfaces its code' (sobre el codigo invalid-body).
 
 **Verification:** la suite de `web/` pasa con los tests nuevos y el typecheck no se rompe.
 
@@ -214,9 +214,8 @@ npm run lint      # expected: exit 0
 **Objective:** la aritmética del gráfico sirve a dos series con líneas base distintas, sin
 cambiar un solo punto de los que ya dibuja el Pulso.
 
-**Files:** `web/src/series-points.ts` (create, `git mv` de `web/src/pulse-points.ts`),
-`web/src/series-points.test.ts` (create, `git mv` de `web/src/pulse-points.test.ts`),
-`web/src/Pulse.tsx` (modify)
+**Files:** `web/src/series-points.ts` (create), `web/src/series-points.test.ts` (create),
+`web/src/pulse-points.ts` (delete), `web/src/Pulse.tsx` (modify)
 
 Current state (web/src/pulse-points.ts, lines 31-39):
 
@@ -245,7 +244,9 @@ export function areaPoints(points: string, geometry?: SeriesGeometry): string
 
 `geometry` por defecto es `PULSE_GEOMETRY` en las dos funciones, y la fórmula es la citada
 arriba con `geometry.width` / `geometry.baseline` / `geometry.headroom` en lugar de las tres
-constantes. `PULSE_WIDTH`, `PULSE_BASELINE` y `PULSE_HEADROOM` dejan de exportarse.
+constantes. `PULSE_WIDTH`, `PULSE_BASELINE` y `PULSE_HEADROOM` dejan de exportarse. El origen de
+los dos create es un `git mv` de `web/src/pulse-points.*`, no una copia; la ruta vieja del test
+no se declara arriba porque git detecta su rename y solo la presenta por el destino.
 
 Call site (web/src/Pulse.tsx):
 
@@ -262,9 +263,9 @@ es `'0.0,109.0 600.0,6.0'`, mientras `polylinePoints([0, 1], 1)` sigue siendo
 `'0.0,199.0 600.0,6.0'`: el par pina que el default no se movió. Luego el mínimo verde.
 
 **Tests:** los 3 de `pulse-points.test.ts` viajan tal cual al fichero renombrado; añadido:
-`a geometry with another baseline scales to that baseline`. Los tests de `App.test.tsx` que
-pinean `'0.0,6.0 600.0,174.9'` y `'0.0,150.8 600.0,102.5'` NO se tocan: son la prueba de que el
-refactor no cambia nada.
+'a geometry with another baseline scales to that baseline'. Los dos tests de `App.test.tsx` que
+pinean las cadenas de puntos del Pulso NO se tocan: son la prueba de que el refactor no movió
+nada.
 
 **Verification:** el rename no deja rastro del módulo viejo y el Pulso dibuja los mismos puntos.
 
@@ -311,11 +312,12 @@ es `'1 persona concentra 80% de los commits'` y con `authors: 2`,
 `'2 personas concentran 80% de los commits'`: el par pina la frontera del singular, que es la
 única decisión que la frase puede romper. Luego el mínimo verde, función a función.
 
-**Tests:** añadidos: `one author concentrating is singular, two are plural`,
-`with no commits nobody has touched the repo`, `the long label of the full window is the whole history`,
-`the root reads as the whole repo`, `one touched child is singular, two are plural`,
-`with no touched children the footer says the tree is still there`,
-`the fallback notice names the folder it fell back to`.
+**Tests:** añadidos: 'one author concentrating is singular, two are plural',
+'with no commits nobody has touched the repo',
+'the long label of the full window is the whole history',
+'the root reads as the whole repo', 'one touched child is singular, two are plural',
+'with no touched children the footer says the tree is still there',
+'the fallback notice names the folder it fell back to'.
 
 **Verification:** los textos quedan pineados y nada más se movió.
 
@@ -371,12 +373,12 @@ con `percent` `40`, `36` y `1`, los `barWidth` son `'100.0%'`, `'90.0%'` y `'2.5
 es `true`, `true`, `false`: pina a la vez el umbral del 0,9 (36 entra, 1 no) y el mínimo de 2.
 Luego el mínimo verde, función a función.
 
-**Tests:** añadidos: `the bar of the hottest row fills the level and the coldest keeps a stub`,
-`a level with no commits still draws stub bars`, `at most eight rows are drawn`,
-`the breadcrumb starts at the repo when nothing is scoped`,
-`the breadcrumb starts at the main folder and walks down to the level`,
-`the options offer the root, the walked levels and the folders in sight`,
-`the saved main folder is always an option`.
+**Tests:** añadidos: 'the bar of the hottest row fills the level and the coldest keeps a stub',
+'a level with no commits still draws stub bars', 'at most eight rows are drawn',
+'the breadcrumb starts at the repo when nothing is scoped',
+'the breadcrumb starts at the main folder and walks down to the level',
+'the options offer the root, the walked levels and the folders in sight',
+'the saved main folder is always an option'.
 
 **Verification:** el módulo es puro (ni React ni `fetch`) y los umbrales quedan pineados.
 
@@ -433,9 +435,9 @@ Call site (web/src/App.tsx):
 (`'ada@example.com'`, `'Ada Lovelace'`): la presencia de la frase prueba que el bloque se pintó,
 así que las dos ausencias son ausencias y no una pantalla vacía. Luego el mínimo verde.
 
-**Tests:** añadidos a `App.test.tsx`: `no author identity reaches the DOM`,
-`the people block draws active authors per bucket`,
-`the concentration bar is as wide as its percentage`.
+**Tests:** añadidos a `App.test.tsx`: 'no author identity reaches the DOM',
+'the people block draws active authors per bucket',
+'the concentration bar is as wide as its percentage'.
 
 **Verification:** Gente cuelga de la columna izquierda y el AC de identidad queda pineado.
 
@@ -450,8 +452,8 @@ npm run lint      # expected: exit 0
 **Objective:** se baja de carpeta en carpeta hasta ver ficheros, y el breadcrumb vuelve a
 cualquier nivel recorrido.
 
-**Files:** `web/src/Heat.tsx`, `web/src/Heat.test.tsx` (create); `web/src/App.tsx`,
-`web/src/App.test.tsx` (modify)
+**Files:** `web/src/Heat.tsx` (create), `web/src/Heat.test.tsx` (create),
+`web/src/App.tsx` (modify), `web/src/App.test.tsx` (modify)
 
 Contract (web/src/Heat.tsx):
 
@@ -462,19 +464,19 @@ export default function HeatBlock({ repoId, repoName, window }: HeatBlockProps)
 
 Estado propio: `path: string | undefined` (`undefined` deja que el server ancle el nivel en la
 carpeta principal), `heat: Heat | null`, `error: ApiErrorCode | null`. Un `useEffect` con deps
-`[repoId, window, path]` y un `AbortController`, igual que `App.tsx`: `setHeat(null)` antes de
-cargar y nada se escribe si la señal se abortó. El error va en
+`[repoId, window, path]` y un `AbortController`, como en `App.tsx`: `setHeat(null)` antes de
+cargar, y nada se escribe si se abortó. El error va en
 `<p role="alert">No se ha podido cargar el calor ({code}).</p>`.
 
-La composición sale del bloque «Calor» de la maqueta, con sus tipografías y colores tal cual:
+La composición sale del bloque «Calor» de la maqueta, con sus tipografías y colores:
 cabecera `Calor` + `¿dónde arde?`, y a la derecha `← subir`, `disabled` y en
 `--color-neutral-400` cuando el nivel ya es el primer `Crumb`. Debajo,
 `<nav data-testid="heat-breadcrumb">` con un `<button>` por `Crumb` de
 `breadcrumb(repoName, heat.mainFolder, heat.path)`, separados por `/`, que hacen
-`setPath(crumb.path)`. Si `heatRows(heat.children)` está vacío, en vez de filas van
+`setPath(crumb.path)`. Si `heatRows(heat.children)` está vacío, en vez de filas:
 `noHeatHeadline(window)` y `Sin commits en la ventana no hay reparto que medir.`. Cada `HeatRow`
-es un `<button data-testid="heat-row">` que hace `setPath` del hijo cuando `kind === 'dir'`, y un
-`<div data-testid="heat-row">` cuando es `'file'`: barra de `barWidth` en `--color-accent`
+es un `<button data-testid="heat-row">` que hace `setPath` del hijo si `kind === 'dir'`, y un
+`<div data-testid="heat-row">` si es `'file'`: barra de `barWidth` en `--color-accent`
 (carpeta) o `--color-accent-2` (fichero), el nombre con `/` detrás si es carpeta, los `commits`,
 `` `${percent}%` `` en `--color-text` si `hottest` y `--color-neutral-800` si no, y `›` solo en
 las carpetas. El pie es `heatFooter(heat.children.length, heat.commits, heat.mainFolderCommits)`
@@ -497,10 +499,10 @@ pincha el crumb `src` y la lista vuelve a `checkout`/`ui`: volver al primer nive
 tercero es lo que pina «cualquier nivel», y no la vuelta al anterior, que `← subir` ya cubre.
 
 **Tests:** añadidos a `Heat.test.tsx`:
-`the drill-down goes down to files and the breadcrumb comes back to any level`,
-`going up one level asks for the parent`, `a failed load reports its code`,
-`a level nobody touched says so instead of drawing rows`. Añadido a `App.test.tsx`:
-`the heat block hangs from the right column and reloads on a window change`.
+'the drill-down goes down to files and the breadcrumb comes back to any level',
+'going up one level asks for the parent', 'a failed load reports its code',
+'a level nobody touched says so instead of drawing rows'. Añadido a `App.test.tsx`:
+'the heat block hangs from the right column and reloads on a window change'.
 
 **Verification:** el drill-down y el breadcrumb quedan pineados.
 
@@ -550,10 +552,9 @@ que el `GET` posterior fue **sin** `path` (el nivel se reancla); después se rem
 desde cero y se afirma que el `<select>` sigue en `src/checkout` — el «se recuerda al reabrir»
 del AC, que lo cumple el server, no la UI.
 
-**Tests:** añadidos: `choosing another main folder rescopes the percentages and is remembered`,
-`the options offer the root, the walked levels and the folders in sight`,
-`a fallback says the saved folder is gone and which one is used`,
-`a rejected save keeps the level and reports its code`.
+**Tests:** añadidos: 'choosing another main folder rescopes the percentages and is remembered',
+'a fallback says the saved folder is gone and which one is used',
+'a rejected save keeps the level and reports its code'.
 
 **Verification:** el AC de la carpeta principal queda pineado de punta a punta.
 
