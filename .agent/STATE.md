@@ -156,10 +156,20 @@ Cap 0/1 LIBRE: nada en vuelo y sin residuo. El #6 (UI: gente y calor) está en
   'ok' en GitHub no le llega. Hay que empujarlo a mano:
       cmux workspace list                       # localiza el workspace del slice
       cmux send --workspace workspace:<n> "<el OK y qué debe hacer>"
-      cmux send-key --workspace workspace:<n> Enter
+      cmux send-key --workspace workspace:<n> enter
   Los DOS comandos: `send` solo escribe en el prompt, deja el texto sin enviar
-  (el `\n` que documenta su ayuda no lo envió aquí). Comprobar con
-  `cmux read-screen --workspace workspace:<n>` que arrancó de verdad.
+  (el `\n` que documenta su ayuda no lo envió aquí).
+  LA TECLA VA EN MINÚSCULA: `send-key ... enter`, como el ejemplo de su propia
+  ayuda (`cmux send-key enter`). Con `Enter` capitalizado el comando devuelve
+  `OK surface:<n> workspace:<n>` y exit 0 y el texto SE QUEDA en el prompt sin
+  enviarse. Medido el 2026-08-19 empujando el #5: `Enter` envió 1 de 4 veces,
+  `enter` 1 de 1 y al primer intento. El exit 0 dice que la tecla se entregó a la
+  superficie, no que el prompt se enviara, así que no sirve de confirmación.
+  COMPROBAR SIEMPRE con `cmux read-screen --workspace workspace:<n>`: si el texto
+  sigue dentro del recuadro del prompt, NO se ha enviado; enviado de verdad es
+  verlo subir al historial y al agente trabajando («Sketching…», «Sprouting…»).
+  Y no repetir Enter a ciegas: cada pulsación que sí entre en un prompt vacío es
+  un turno vacío que el agente tiene que contestar.
   (`cmux list-workspaces` sigue funcionando, pero ya es alias de
   `cmux workspace list`; se cierra con `cmux workspace close workspace:<n>`.)
 - EL LABEL DEL WORKSPACE DE CMUX MIENTE, Y CASI CUESTA MATAR ESTA SESIÓN.
@@ -198,7 +208,16 @@ Cap 0/1 LIBRE: nada en vuelo y sin residuo. El #6 (UI: gente y calor) está en
   `git diff main feat/<n>` (dos puntos, no tres — con tres sale el diff entero del
   slice aunque esté todo mergeado). Vacío = no hay nada que rescatar.
 ## Residuo pendiente
-- Ninguno. El #5 se cosechó el 2026-08-21: labels alineadas con el #2/#3/#4,
+- Ninguno EN RAMAS `feat/*` ni en disco. Pero el 2026-08-21 aparecieron dos ramas
+  remotas `chore/*` que ninguna cosecha miraba, porque este apartado solo vigilaba
+  las de slice: `chore/state-slice-5` (PR #16, mergeada en SQUASH, con DOS commits
+  posteriores al merge que nunca entraron — de ahí se recuperó el gotcha de la
+  tecla de cmux) y `chore/state-slice-5-cosechado` (PR #18, mergeada, rama no
+  borrada). Las dos se borraron ese mismo día. LECCIÓN: un squash merge deja la
+  rama viva, y lo que se commitee en ella DESPUÉS del merge no está en ningún
+  sitio aunque la PR salga en verde. Al cosechar, mirar `git ls-remote --heads
+  origin` entero, no solo `feat/*`.
+- El #5 se cosechó el 2026-08-21: labels alineadas con el #2/#3/#4,
   `.worktrees/5` retirado, rama local `feat/5` borrada con `-D` (era la línea
   huérfana del run de prueba, 536c54d, descartada a conciencia por decisión
   explícita: no aportaba ningún fichero que no estuviera ya en `main`), rama
