@@ -3,6 +3,7 @@ import { ApiError, fetchRepos, fetchSummary } from './api/client'
 import { DEFAULT_WINDOW } from './api/types'
 import type { ApiErrorCode, Clone, Summary, TimeWindow } from './api/types'
 import Header from './Header'
+import People from './People'
 import Pulse from './Pulse'
 import TrendPanel from './TrendPanel'
 
@@ -87,7 +88,10 @@ export default function App() {
       {error === null && summary === null && <p>Cargando…</p>}
       {summary !== null && (
         <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 440px', gap: 64, alignItems: 'start' }}>
-          <Pulse summary={summary} />
+          <div style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: 48 }}>
+            <Pulse summary={summary} />
+            <People summary={summary} />
+          </div>
           <TrendPanel window={window} trend={summary.trend} kpis={summary.kpis} />
         </div>
       )}

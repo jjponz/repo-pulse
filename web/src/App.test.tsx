@@ -14,8 +14,16 @@ const CLONES: Clone[] = [
   },
 ]
 
+/**
+ * Overrides for the summary payload. `Record<string, unknown>` on top of
+ * `Partial<Summary>` is deliberate: a test can make the double answer with
+ * fields the UI never declared — author identity, say — and prove that none of
+ * them reaches the DOM.
+ */
+type SummaryOverrides = Partial<Summary> & Record<string, unknown>
+
 /** A summary whose `meta` — and, for the pulse, whose series — the test picks. */
-function summaryWith(meta: SummaryMeta, overrides: Partial<Summary> = {}): Summary {
+function summaryWith(meta: SummaryMeta, overrides: SummaryOverrides = {}): Summary {
   return {
     window: '12m',
     bucket: 'month',
@@ -32,9 +40,9 @@ function summaryWith(meta: SummaryMeta, overrides: Partial<Summary> = {}): Summa
   }
 }
 
-/** A bucket the pulse can draw: only its `commits` count reaches the chart. */
-function bucket(start: string, commits: number): Bucket {
-  return { start, commits, authors: 1 }
+/** A bucket of the two series: `commits` for the pulse, `authors` for people. */
+function bucket(start: string, commits: number, authors = 1): Bucket {
+  return { start, commits, authors }
 }
 
 /**
@@ -46,7 +54,7 @@ function bucket(start: string, commits: number): Bucket {
  */
 function stubApi(
   meta: SummaryMeta,
-  overrides: Partial<Summary> | ((window: string) => Partial<Summary>) = {},
+  overrides: SummaryOverrides | ((window: string) => SummaryOverrides) = {},
 ): { urls: string[] } {
   const urls: string[] = []
   vi.stubGlobal('fetch', (url: string) => {
@@ -200,4 +208,66 @@ test('changing the window recomputes pulse, trend and KPIs', async () => {
   expect(screen.getByTestId('pulse-current').getAttribute('points')).toBe('0.0,134.7 600.0,6.0')
   expect(screen.getByTestId('kpi-commits').textContent).toBe('12')
   expect(screen.getByRole('combobox', { name: 'Repositorio' })).toBe(select)
+})
+
+test('no author identity reaches the DOM', async () => {
+  stubApi(
+    { lastCommitAt: null, fetchedAt: null, stale: false },
+    {
+      buckets: [bucket('2026-07-01T00:00:00.000Z', 3, 4), bucket('2026-08-01T00:00:00.000Z', 5, 7)],
+      kpis: { commits: 25, activeAuthors: 7, filesTouched: 12 },
+      concentration: { authors: 2, percentage: 80 },
+      // Identity the API never declares and the server never sends: it is here
+      // so the UI has something to leak if it ever renders what it was not
+      // asked to render.
+      topAuthorName: 'Ada Lovelace',
+      topAuthorEmail: 'ada@example.com',
+    },
+  )
+
+  render(<App />)
+
+  // The concentration phrase proves the people block was painted, so the three
+  // absences below are absences and not an empty screen.
+  expect(await screen.findByText('2 personas concentran 80% de los commits')).toBeTruthy()
+  expect(document.body.textContent).not.toContain('Ada Lovelace')
+  expect(document.body.textContent).not.toContain('ada@example.com')
+  expect(document.body.textContent).not.toContain('@')
+})
+
+test('the people block draws active authors per bucket', async () => {
+  stubApi(
+    { lastCommitAt: null, fetchedAt: null, stale: false },
+    {
+      // Commits and authors differ on purpose: a line drawn off `commits`
+      // would land on other coordinates than the ones pinned below.
+      buckets: [bucket('2026-07-01T00:00:00.000Z', 3, 1), bucket('2026-08-01T00:00:00.000Z', 5, 3)],
+      kpis: { commits: 8, activeAuthors: 3, filesTouched: 4 },
+    },
+  )
+
+  render(<App />)
+
+  // Its own geometry: the shorter box of `PEOPLE_GEOMETRY`, whose baseline is
+  // 109 and not the pulse's 199.
+  expect((await screen.findByTestId('people-authors')).getAttribute('points')).toBe('0.0,74.7 600.0,6.0')
+  expect(screen.getByText('autores activos por mes')).toBeTruthy()
+})
+
+test('the concentration bar is as wide as its percentage', async () => {
+  stubApi(
+    { lastCommitAt: null, fetchedAt: null, stale: false },
+    {
+      buckets: [bucket('2026-07-01T00:00:00.000Z', 9, 4), bucket('2026-08-01T00:00:00.000Z', 16, 5)],
+      kpis: { commits: 25, activeAuthors: 5, filesTouched: 12 },
+      concentration: { authors: 3, percentage: 64 },
+    },
+  )
+
+  render(<App />)
+
+  // The width is the payload's `percentage` and nothing else: not the author
+  // count, not a share worked out from the KPIs.
+  expect((await screen.findByTestId('concentration-bar')).style.width).toBe('64%')
+  expect(screen.getByText('3 personas concentran 64% de los commits')).toBeTruthy()
 })
