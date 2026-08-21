@@ -1,0 +1,51 @@
+{
+  "issue": 6,
+  "task": 6,
+  "task_name": "el bloque Calor: breadcrumb y drill-down hasta fichero",
+  "verdict": {
+    "ruling": "PASS",
+    "rubric": [
+      {
+        "rule": "objetivo",
+        "result": "El objetivo («se baja de carpeta en carpeta hasta ver ficheros, y el breadcrumb vuelve a cualquier nivel recorrido») esta producido por codigo de produccion: web/src/Heat.tsx:44-46 mantiene el nivel en su propio estado (`const [path, setPath] = useState<string | undefined>(undefined)`), Heat.tsx:131 baja un nivel al pinchar una fila de carpeta (`setPath(heat.path === '' ? row.name : `${heat.path}/${row.name}`)`), Heat.tsx:138 pinta la fila de fichero como <div> sin onClick (fin del descenso) y Heat.tsx:113-115 hace `setPath(crumb.path)` por cada crumb, con lo que se salta a cualquier nivel ya recorrido, no solo al anterior. El bloque queda montado en la columna derecha (App.tsx:98-103), asi que la conducta es alcanzable en producto y no solo en el test.",
+        "outcome": "conforme"
+      },
+      {
+        "rule": "asercion-tdd",
+        "result": "El test nombrado existe en web/src/Heat.test.tsx:95 y su cuerpo coincide con la frase del brief punto por punto: el doble responde por `path` con las tres llaves exactas que pide el plan (TREE: 'src' -> checkout y ui; 'src/checkout' -> pago; 'src/checkout/pago' -> pago.ts y total.ts); se pincha `checkout/` y luego `pago/` (dos descensos, nivel tercero); se afirma que las filas de fichero existen (`rowNames()).toEqual(['pago.ts', 'total.ts'])`) y que NINGUNA es un boton (`screen.getAllByTestId('heat-row').map((element) => element.tagName)).toEqual(['DIV', 'DIV'])`); y se pincha el crumb `src` desde el TERCER nivel (crumbs ['src','checkout','pago']) para volver al PRIMERO, con la lista de nuevo en ['checkout/','ui/']. Es el salto de dos niveles que pide el brief, no la vuelta al inmediatamente anterior; el cambio es observable porque antes del click las filas eran los ficheros.",
+        "outcome": "conforme"
+      },
+      {
+        "rule": "contrato",
+        "result": "Simbolo a simbolo: `HeatBlockProps { repoId; repoName; window }` y `export default function HeatBlock({ repoId, repoName, window }: HeatBlockProps)` identicos al bloque Contract (Heat.tsx:9-22). Estado propio con los tres tipos pedidos, useEffect con deps `[repoId, window, path]`, AbortController, `setHeat(null)` antes de cargar y nada escrito si `signal.aborted` (Heat.tsx:48-67). Error exacto: `<p role=\"alert\">No se ha podido cargar el calor ({error}).</p>`. `<nav data-testid=\"heat-breadcrumb\">` con un <button> por Crumb de `breadcrumb(repoName, heat.mainFolder, heat.path)` separados por '/'; `← subir` disabled y en --color-neutral-400 cuando no hay crumb superior (`parent = crumbs.at(-2)`); dir como `<button data-testid=\"heat-row\">` y file como `<div data-testid=\"heat-row\">`; barra en --color-accent / --color-accent-2, nombre con '/' solo en carpeta, commits, `${percent}%` en --color-text si hottest y --color-neutral-800 si no, y '›' solo en carpetas; pie `heatFooter(heat.children.length, heat.commits, heat.mainFolderCommits)` + ' · el % es sobre el total de la carpeta principal.'. Los argumentos de `fetchHeat(repoId, window, path, signal)` casan con la firma de web/src/api/client.ts:39-44. El bloque Call site esta reproducido en App.tsx:96-104 con el mismo `key`, y `repoNameOf(repos, repoId)` que invoca no existia en ningun sitio (grep: solo App.tsx:116) — su creacion es lo minimo (un `find` y el id como fallback) y no duplica ningun helper exportado (Header.tsx:23 hace su propia busqueda interna, no exportada).",
+        "outcome": "conforme"
+      },
+      {
+        "rule": "decisiones-cerradas",
+        "result": "Filas que este diff toca, una por una: «Estado del drill-down» — el estado vive en Heat.tsx y App lo remonta con `key={`${repoId}|${window}`}` (App.tsx:99), literal. Que hoy el remonte tambien lo provoque el `setSummary(null)` de App.tsx:50 no convierte la decision en incumplida: la fila la cierra un humano y el diff implementa su valor; una redundancia defensiva obedecida no es un hallazgo (y quitar el `key` si seria reabrirla). «Filas de fichero» — <div>, no <button> (Heat.tsx:138). «Tope de filas» — se usa `heatRows` (limite 8) y el pie cuenta `heat.children.length`, todos los hijos. «Fuente de los %» — se pinta `${row.percent}%` del payload, sin recalculo. «Pie del Calor» — el texto pasa a «el % es sobre el total de la carpeta principal.». «Frontera de tipos» — solo se importa de ./api/types. «Tokens de marca» — tokens.css intacto y todo color sale de variables. Ninguna fila implementada con otro valor.",
+        "outcome": "conforme"
+      },
+      {
+        "rule": "patrones",
+        "result": "Vara real y leida. Exemplar web/src/Pulse.tsx: Heat.tsx repite su idioma (section con `gap: '14px'`, cabecera con `<h2 style={{ margin: 0, fontSize: '30px', fontWeight: 600 }}>` mas subtitulo 17px en --color-neutral-600, estilos en linea desde tokens, `data-testid` por dato). Regla docs/design/repo-pulse-mockup.html: la maqueta define la fila como `border: 0; border-bottom: 1px solid #d7d3d3; background: transparent; padding: 12px 0; text-align: left; display: flex; align-items: baseline; gap: 12px` y las celdas 16px/#7d7979, 20px/600/66px right, 16px/#bab6b6 width 12px — ROW_STYLE y rowCells son eso mismo con variables (#d7d3d3=--color-neutral-300, #bab6b6=--color-neutral-400, #0088b0=--color-accent, #d6006c=--color-accent-2); el breadcrumb de la maqueta (`gap: 6px; font-size: 18px; flex-wrap: wrap`, ultimo crumb #201e1d/600 y anteriores #006786/400, separador #bab6b6) y el `upColor` (#006786 / #bab6b6) coinciden. Regla AGENTS.md: «El codigo se escribe SIEMPRE en ingles» — identificadores, comentarios y nombres de test del diff estan en ingles y solo el texto visible queda en espanol; «web/ NO importa de server/» respetado.",
+        "outcome": "conforme"
+      },
+      {
+        "rule": "manipulacion-tests",
+        "result": "Las unicas lineas `-` en fichero de test estan en web/src/App.test.tsx y ninguna toca una asercion, un caso ni un test: (a) la linea del `import type` que se amplia con Heat/HeatEntry, (b) el fixture `name: 'alpha'` -> `name: 'alpha-clone'`, y (c) la rama del doble de fetch que ahora enruta las URLs de `/heat?`. La (b) es dato de fixture y ademas endurece: ningun test previo afirmaba el nombre del clon (grep de 'alpha' en web/src: el unico texto afirmado era la ruta '/git/alpha' en App.test.tsx:129, y el combobox se busca por aria-label, no por el texto de la opcion), y con id y nombre distintos el nuevo `expect(breadcrumb.textContent).toBe('alpha-clone')` discrimina pasar el identificador en lugar del nombre. La (c) anade una rama al doble sin relajar nada. Ninguna asercion preexistente quedo eliminada ni relajada.",
+        "outcome": "conforme"
+      },
+      {
+        "rule": "fixture-theater",
+        "result": "El efecto sale de produccion, no del andamio. El descenso lo produce el `onClick` de la fila de carpeta y el salto lo produce el `onClick` del crumb, ambos en web/src/Heat.tsx, y el nivel se recarga por el useEffect con dep `path`; el doble de fetch solo devuelve arboles por `path` y no decide que se pinta. La discriminacion fichero/carpeta es estructural en produccion (rama `row.kind === 'dir' ? <button ...> : <div ...>`), no un valor esperado cableado en el test. Y `repoNameOf` en App.tsx es la linea de produccion detras del `expect(breadcrumb.textContent).toBe('alpha-clone')` de App.test.tsx.",
+        "outcome": "conforme"
+      },
+      {
+        "rule": "alcance",
+        "result": "Dentro de los cuatro ficheros declarados no hay nada que no sirva a una frase de la tarea: Heat.tsx es el bloque del contrato; Heat.test.tsx son exactamente los cuatro tests que lista **Tests:**; en App.tsx solo el bloque Call site literal mas `repoNameOf`, que ese mismo bloque invoca; en App.test.tsx el test nombrado en **Tests:** y su andamio minimo (HEAT_TREE, heatFor, heatUrls, la rama de `/heat?` en el doble), necesario porque ahora todas las pruebas de App montan el bloque. No se toca `server/`, ni tokens.css, ni se implementan los chips de «estado de demo», ni las pantallas del #7, ni el selector de carpeta principal o el aviso de `fallback` (tareas posteriores del slice) — nada de lo que `### Out of scope` nombra.",
+        "outcome": "conforme"
+      }
+    ],
+    "findings": []
+  }
+}

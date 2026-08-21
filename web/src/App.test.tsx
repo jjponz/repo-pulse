@@ -1,12 +1,14 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { expect, test, vi } from 'vitest'
 import App from './App'
-import type { Bucket, Clone, Summary, SummaryMeta } from './api/types'
+import type { Bucket, Clone, Heat, HeatEntry, Summary, SummaryMeta } from './api/types'
 
 const CLONES: Clone[] = [
   {
+    // Id and name differ on purpose: the URLs are built from the id, and what
+    // the screen calls the repo is the name.
     id: 'alpha',
-    name: 'alpha',
+    name: 'alpha-clone',
     path: '/git/alpha',
     lastCommitAt: '2026-08-13T09:00:00.000Z',
     fetchedAt: '2026-08-18T09:00:00.000Z',
@@ -46,6 +48,39 @@ function bucket(start: string, commits: number, authors = 1): Bucket {
 }
 
 /**
+ * The heat tree the double answers with, keyed by the level asked for. The
+ * saved main folder is the root of the clone, so no `path` in the query and
+ * `''` are the same level.
+ */
+const HEAT_TREE: Record<string, HeatEntry[]> = {
+  '': [
+    { name: 'web', kind: 'dir', commits: 18, percent: 60 },
+    { name: 'server', kind: 'dir', commits: 12, percent: 40 },
+  ],
+  web: [{ name: 'src', kind: 'dir', commits: 18, percent: 100 }],
+}
+
+function heatFor(url: string): Heat {
+  const path = new URL(url, 'http://test.invalid').searchParams.get('path') ?? ''
+  const children = HEAT_TREE[path] ?? []
+  return {
+    window: '12m',
+    mainFolder: '',
+    fallback: false,
+    path,
+    commits: children.reduce((total, child) => total + child.commits, 0),
+    mainFolderCommits: 30,
+    headSha: '0f1e2d3',
+    children,
+  }
+}
+
+/** The heat requests out of `urls`, so a test can look at the last level asked for. */
+function heatUrls(urls: readonly string[]): string[] {
+  return urls.filter((url) => url.includes('/heat?'))
+}
+
+/**
  * Doubles `fetch` with the two endpoints the shell calls, and records every
  * requested URL so a test can look at the last one. `vi.unstubAllGlobals()` in
  * the setup file undoes the stub after each test. `overrides` can also be a
@@ -62,7 +97,9 @@ function stubApi(
     const body =
       url === '/api/repos'
         ? { repos: CLONES }
-        : summaryWith(meta, typeof overrides === 'function' ? overrides(windowOf(url)) : overrides)
+        : url.includes('/heat?')
+          ? heatFor(url)
+          : summaryWith(meta, typeof overrides === 'function' ? overrides(windowOf(url)) : overrides)
     return Promise.resolve({ ok: true, json: () => Promise.resolve(body) } as unknown as Response)
   })
   return { urls }
@@ -270,4 +307,33 @@ test('the concentration bar is as wide as its percentage', async () => {
   // count, not a share worked out from the KPIs.
   expect((await screen.findByTestId('concentration-bar')).style.width).toBe('64%')
   expect(screen.getByText('3 personas concentran 64% de los commits')).toBeTruthy()
+})
+
+test('the heat block hangs from the right column and reloads on a window change', async () => {
+  const { urls } = stubApi(
+    { lastCommitAt: null, fetchedAt: null, stale: false },
+    { buckets: [bucket('2026-07-01T00:00:00.000Z', 2), bucket('2026-08-01T00:00:00.000Z', 4)] },
+  )
+
+  render(<App />)
+
+  // The right column of the grid: the same one the trend panel hangs from, and
+  // not the one the pulse lives in.
+  const breadcrumb = await screen.findByTestId('heat-breadcrumb')
+  const column = screen.getByTestId('trend-headline').closest('section')?.parentElement
+  expect(column?.contains(breadcrumb)).toBe(true)
+  expect(column?.contains(screen.getByTestId('pulse-current'))).toBe(false)
+  // The shell hands the block the name of the selected clone, not just its id:
+  // the root of the tree is drawn with that name.
+  expect(breadcrumb.textContent).toBe('alpha-clone')
+  expect(heatUrls(urls).at(-1)).toBe('/api/repos/alpha/heat?window=12m')
+
+  fireEvent.click(screen.getByRole('button', { name: 'todo' }))
+
+  // The window the header picked is the window the heat is asked for.
+  await waitFor(() => {
+    expect(heatUrls(urls).at(-1)).toBe('/api/repos/alpha/heat?window=all')
+  })
+  // Redrawn for the new window: the level the server anchors is back on screen.
+  expect(await screen.findByText('web/')).toBeTruthy()
 })

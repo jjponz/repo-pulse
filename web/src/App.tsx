@@ -3,6 +3,7 @@ import { ApiError, fetchRepos, fetchSummary } from './api/client'
 import { DEFAULT_WINDOW } from './api/types'
 import type { ApiErrorCode, Clone, Summary, TimeWindow } from './api/types'
 import Header from './Header'
+import HeatBlock from './Heat'
 import People from './People'
 import Pulse from './Pulse'
 import TrendPanel from './TrendPanel'
@@ -92,11 +93,28 @@ export default function App() {
             <Pulse summary={summary} />
             <People summary={summary} />
           </div>
-          <TrendPanel window={window} trend={summary.trend} kpis={summary.kpis} />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 40 }}>
+            <TrendPanel window={window} trend={summary.trend} kpis={summary.kpis} />
+            <HeatBlock
+              key={`${repoId}|${window}`}
+              repoId={repoId}
+              repoName={repoNameOf(repos, repoId)}
+              window={window}
+            />
+          </div>
         </div>
       )}
     </main>
   )
+}
+
+/**
+ * The name of the selected clone, which is what the heat breadcrumb calls the
+ * root of the tree. Its id is the fallback: the two loads are independent, so
+ * the block can be mounted before the clone list has landed.
+ */
+function repoNameOf(repos: readonly Clone[], repoId: string): string {
+  return repos.find((repo) => repo.id === repoId)?.name ?? repoId
 }
 
 /** Anything that is not an `ApiError` never reached the envelope: `internal`. */
