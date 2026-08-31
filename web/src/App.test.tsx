@@ -195,6 +195,9 @@ test('the full window declares there is nothing to compare', async () => {
     { lastCommitAt: null, fetchedAt: null, stale: false },
     {
       window: 'all',
+      // A window with commits: with every bucket at 0 the view is the empty
+      // state and the trend panel is not on screen at all.
+      buckets: [bucket('2026-07-01T00:00:00.000Z', 2), bucket('2026-08-01T00:00:00.000Z', 4)],
       trend: { comparable: false, percentage: null, previousWindowCommits: null, reason: 'full-window' },
     },
   )
@@ -336,4 +339,88 @@ test('the heat block hangs from the right column and reloads on a window change'
   })
   // Redrawn for the new window: the level the server anchors is back on screen.
   expect(await screen.findByText('web/')).toBeTruthy()
+})
+
+test('a window with every bucket at 0 says so with the window it was asked for', async () => {
+  stubApi(
+    { lastCommitAt: null, fetchedAt: null, stale: false },
+    { buckets: [bucket('2026-08-17T00:00:00.000Z', 0), bucket('2026-08-18T00:00:00.000Z', 0)] },
+  )
+
+  render(<App />)
+  fireEvent.click(screen.getByRole('button', { name: '90 días' }))
+
+  expect(await screen.findByText('0 commits en 90 días')).toBeTruthy()
+
+  fireEvent.click(screen.getByRole('button', { name: '30 días' }))
+
+  expect(await screen.findByText('0 commits en 30 días')).toBeTruthy()
+})
+
+test('the empty window offers the next window out, one step at a time', async () => {
+  stubApi({ lastCommitAt: null, fetchedAt: null, stale: false }, { buckets: [] })
+
+  render(<App />)
+  fireEvent.click(screen.getByRole('button', { name: '30 días' }))
+
+  expect(await screen.findByRole('button', { name: 'Ver 12 meses' })).toBeTruthy()
+
+  fireEvent.click(screen.getByRole('button', { name: '90 días' }))
+
+  expect(await screen.findByRole('button', { name: 'Ver 12 meses' })).toBeTruthy()
+
+  fireEvent.click(screen.getByRole('button', { name: '12 meses' }))
+
+  // From the default window the next one out is the whole history.
+  expect(await screen.findByRole('button', { name: 'Ver todo' })).toBeTruthy()
+})
+
+test('on the full window the empty state offers no way out', async () => {
+  stubApi({ lastCommitAt: null, fetchedAt: null, stale: false }, { buckets: [] })
+
+  render(<App />)
+  fireEvent.click(screen.getByRole('button', { name: 'todo' }))
+
+  // The headline proves the empty state is the one drawn, so the two absences
+  // below are absences and not an unrendered block.
+  expect(await screen.findByText('0 commits en todo')).toBeTruthy()
+  expect(screen.queryByRole('button', { name: 'Ver todo' })).toBeNull()
+  expect(screen.queryByRole('button', { name: 'Ver 12 meses' })).toBeNull()
+})
+
+test('the way out changes the window and asks the API again without a reload', async () => {
+  const { urls } = stubApi({ lastCommitAt: null, fetchedAt: null, stale: false }, { buckets: [] })
+
+  render(<App />)
+  fireEvent.click(screen.getByRole('button', { name: '30 días' }))
+  // The node the way out must NOT recreate: the shell re-renders, the page is
+  // never reloaded.
+  const select = await screen.findByRole('combobox', { name: 'Repositorio' })
+  await waitFor(() => {
+    expect(urls.at(-1)).toContain('window=30d')
+  })
+
+  fireEvent.click(await screen.findByRole('button', { name: 'Ver 12 meses' }))
+
+  await waitFor(() => {
+    expect(urls.at(-1)).toContain('window=12m')
+  })
+  // The header follows the change too: the active window is the new one.
+  expect(screen.getByRole('button', { name: '12 meses' }).getAttribute('aria-current')).toBe('true')
+  expect(screen.getByRole('combobox', { name: 'Repositorio' })).toBe(select)
+})
+
+test('a clone with no commits says so in the four windows and never offers a way out', async () => {
+  stubApi({ lastCommitAt: null, fetchedAt: null, stale: false }, { headSha: null, buckets: [] })
+
+  render(<App />)
+
+  for (const label of ['30 días', '90 días', '12 meses', 'todo']) {
+    fireEvent.click(screen.getByRole('button', { name: label }))
+    expect(await screen.findByText('Este clon todavía no tiene commits')).toBeTruthy()
+    // No count of the window either: an empty clone is not a question of where
+    // to look.
+    expect(screen.queryByText(/^0 commits en /)).toBeNull()
+    expect(screen.queryByRole('button', { name: /^Ver / })).toBeNull()
+  }
 })

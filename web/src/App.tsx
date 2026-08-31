@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { ApiError, fetchRepos, fetchSummary } from './api/client'
 import { DEFAULT_WINDOW } from './api/types'
 import type { ApiErrorCode, Clone, Summary, TimeWindow } from './api/types'
+import EmptyState, { hasNoActivity } from './Empty'
 import Header from './Header'
 import HeatBlock from './Heat'
 import People from './People'
@@ -87,7 +88,10 @@ export default function App() {
       />
       {error !== null && <p role="alert">No se ha podido cargar la información ({error}).</p>}
       {error === null && summary === null && <p>Cargando…</p>}
-      {summary !== null && (
+      {summary !== null && hasNoActivity(summary.buckets) && (
+        <EmptyState window={window} headSha={summary.headSha} onWindow={setWindow} />
+      )}
+      {summary !== null && !hasNoActivity(summary.buckets) && (
         <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 440px', gap: 64, alignItems: 'start' }}>
           <div style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: 48 }}>
             <Pulse summary={summary} />

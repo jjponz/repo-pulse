@@ -140,3 +140,7 @@ export function heatFooter(children: number, hereCommits: number, mainFolderComm
 export function fallbackNotice(mainFolder: string): string {
   return `La carpeta principal guardada ya no existe en HEAD: el calor se acota a ${mainFolderLabel(mainFolder)}.`
 }
+
+export function emptyWindowHeadline(window: TimeWindow): string {
+  return `0 commits en ${windowLabel(window)}`
+}
