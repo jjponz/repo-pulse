@@ -39,3 +39,36 @@ button {
 select {
   font-family: inherit;
 }
+
+/*
+ * The indeterminate indicator of the shell: a segment that travels the track
+ * for as long as the summary is in flight. It is a stylesheet rule and not an
+ * inline style because keyframes cannot be declared inline.
+ */
+@keyframes indeterminate-sweep {
+  from { transform: translateX(-40%); }
+  to { transform: translateX(250%); }
+}
+
+.indeterminate-track {
+  overflow: hidden;
+  width: 100%;
+  height: 4px;
+  background: var(--color-neutral-300);
+}
+
+.indeterminate-track::after {
+  content: "";
+  display: block;
+  width: 40%;
+  height: 100%;
+  background: var(--color-accent);
+  animation: indeterminate-sweep 1.4s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .indeterminate-track::after {
+    width: 100%;
+    animation: none;
+  }
+}

@@ -105,6 +105,28 @@ function stubApi(
   return { urls }
 }
 
+/**
+ * Same doubles as `stubApi`, except every URL `pending` picks never settles.
+ * That is how a test looks at a load in flight: the promise the shell awaits
+ * stays unresolved for the whole test instead of racing the assertions.
+ */
+function stubApiPending(
+  pending: (url: string) => boolean,
+  overrides: SummaryOverrides = {},
+): void {
+  const meta: SummaryMeta = { lastCommitAt: null, fetchedAt: null, stale: false }
+  vi.stubGlobal('fetch', (url: string) => {
+    if (pending(url)) return new Promise(() => {})
+    const body =
+      url === '/api/repos'
+        ? { repos: CLONES }
+        : url.includes('/heat?')
+          ? heatFor(url)
+          : summaryWith(meta, overrides)
+    return Promise.resolve({ ok: true, json: () => Promise.resolve(body) } as unknown as Response)
+  })
+}
+
 /** The `window` query parameter of a summary URL, e.g. `30d`. */
 function windowOf(url: string): string {
   return new URL(url, 'http://test.invalid').searchParams.get('window') ?? ''
@@ -128,7 +150,7 @@ test('without dates the header shows neither', async () => {
   // landed, so the two absences below are absences and not an empty screen.
   expect(await screen.findByText('/git/alpha')).toBeTruthy()
   await waitFor(() => {
-    expect(screen.queryByText('Cargando…')).toBeNull()
+    expect(screen.queryByRole('status')).toBeNull()
   })
   expect(screen.queryByText(/último commit/)).toBeNull()
   expect(screen.queryByText(/traída/)).toBeNull()
@@ -336,4 +358,60 @@ test('the heat block hangs from the right column and reloads on a window change'
   })
   // Redrawn for the new window: the level the server anchors is back on screen.
   expect(await screen.findByText('web/')).toBeTruthy()
+})
+
+test('while the summary is in flight the view is one indicator and no data', async () => {
+  stubApiPending((url) => url.includes('/summary?'))
+
+  render(<App />)
+
+  // The path of the selected clone proves the clone list landed, so what is
+  // missing below is missing because the summary has not: it is not a screen
+  // that never rendered.
+  expect(await screen.findByText('/git/alpha')).toBeTruthy()
+  expect(screen.getAllByRole('status')).toHaveLength(1)
+  expect(screen.queryByTestId('pulse-current')).toBeNull()
+  expect(screen.queryByTestId('people-authors')).toBeNull()
+  expect(screen.queryByTestId('trend-headline')).toBeNull()
+  expect(screen.queryByText('Calor')).toBeNull()
+})
+
+test('the old plain wait text is gone from every state', async () => {
+  stubApiPending((url) => url.includes('/summary?'))
+
+  render(<App />)
+
+  expect(await screen.findByRole('status')).toBeTruthy()
+  expect(document.body.textContent).not.toContain('Cargando…')
+})
+
+test('when the summary lands the indicator goes and the four blocks are mounted', async () => {
+  stubApi(
+    { lastCommitAt: null, fetchedAt: null, stale: false },
+    { buckets: [bucket('2026-07-01T00:00:00.000Z', 2), bucket('2026-08-01T00:00:00.000Z', 4)] },
+  )
+
+  render(<App />)
+
+  expect(await screen.findByTestId('pulse-current')).toBeTruthy()
+  expect(screen.getByTestId('people-authors')).toBeTruthy()
+  expect(screen.getByTestId('trend-headline')).toBeTruthy()
+  expect(screen.getByText('Calor')).toBeTruthy()
+  expect(screen.queryByRole('status')).toBeNull()
+})
+
+test('the wait of the heat block is not the wait of the view', async () => {
+  stubApiPending((url) => url.includes('/heat?'), {
+    buckets: [bucket('2026-07-01T00:00:00.000Z', 2), bucket('2026-08-01T00:00:00.000Z', 4)],
+  })
+
+  render(<App />)
+
+  // The summary landed and the heat did not: the block is mounted and still
+  // has nothing to draw. The indicator of the view is gone all the same — it
+  // never stands in for the one of the Calor block.
+  expect(await screen.findByTestId('pulse-current')).toBeTruthy()
+  expect(screen.getByText('Calor')).toBeTruthy()
+  expect(screen.queryByTestId('heat-breadcrumb')).toBeNull()
+  expect(screen.queryByRole('status')).toBeNull()
 })
