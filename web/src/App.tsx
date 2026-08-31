@@ -86,7 +86,7 @@ export default function App() {
         now={now}
       />
       {error !== null && <p role="alert">No se ha podido cargar la información ({error}).</p>}
-      {error === null && summary === null && <p>Cargando…</p>}
+      {error === null && summary === null && <Loading />}
       {summary !== null && (
         <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 440px', gap: 64, alignItems: 'start' }}>
           <div style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: 48 }}>
@@ -105,6 +105,25 @@ export default function App() {
         </div>
       )}
     </main>
+  )
+}
+
+/**
+ * The place of the grid while the summary is in flight: one indeterminate
+ * indicator and nothing else. It is a single `role="status"`, not a skeleton
+ * per block, so a screen reader hears the wait once. The Calor block loads
+ * against its own endpoint and keeps its own indicator: this one never stands
+ * in for it.
+ */
+function Loading() {
+  return (
+    <div
+      role="status"
+      aria-label="Cargando el resumen"
+      style={{ minHeight: '360px', display: 'flex', alignItems: 'flex-start' }}
+    >
+      <div className="indeterminate-track" />
+    </div>
   )
 }
 
