@@ -2,6 +2,7 @@ import { expect, test } from 'vitest'
 import {
   bucketNoun,
   concentrationSentence,
+  emptyWindowHeadline,
   fallbackNotice,
   formatDay,
   formatEdge,
@@ -147,4 +148,12 @@ test('the fallback notice names the folder it fell back to', () => {
   expect(fallbackNotice('')).toBe(
     'La carpeta principal guardada ya no existe en HEAD: el calor se acota a todo el repo.',
   )
+})
+
+test('the empty window headline names the window it was asked for', () => {
+  expect(emptyWindowHeadline('30d')).toBe('0 commits en 30 días')
+  expect(emptyWindowHeadline('90d')).toBe('0 commits en 90 días')
+  expect(emptyWindowHeadline('12m')).toBe('0 commits en 12 meses')
+  // The short label, not the long one the heat headline uses.
+  expect(emptyWindowHeadline('all')).toBe('0 commits en todo')
 })
