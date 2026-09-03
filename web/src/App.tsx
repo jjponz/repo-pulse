@@ -93,7 +93,7 @@ export default function App() {
         now={now}
       />
       {snapshot.kind === 'stale' && <StaleNotice.Banner fetchedAt={snapshot.fetchedAt} now={now} />}
-      {screenBody(screen, { repoId, window, onRepo: setRepoId })}
+      {screenBody(screen, { repoId, window, onRepo: setRepoId, onWindow: setWindow, now })}
     </main>
   )
 }
@@ -103,6 +103,8 @@ interface Shell {
   repoId: string
   window: TimeWindow
   onRepo: (id: string) => void
+  onWindow: (window: TimeWindow) => void
+  now: Date
 }
 
 /**
@@ -124,7 +126,12 @@ function screenBody(screen: Screen, shell: Shell): ReactElement {
       return (
         <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 440px', gap: 64, alignItems: 'start' }}>
           <div style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: 48 }}>
-            <Pulse summary={screen.summary} />
+            <Pulse
+              summary={screen.summary}
+              activity={screen.activity}
+              onWindow={shell.onWindow}
+              now={shell.now}
+            />
             <People summary={screen.summary} />
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 40 }}>

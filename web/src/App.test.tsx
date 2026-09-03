@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { expect, test, vi } from 'vitest'
 import App from './App'
-import type { ApiErrorCode, Bucket, Clone, Heat, HeatEntry, Summary, SummaryMeta } from './api/types'
+import type { ApiErrorCode, Bucket, Clone, Heat, HeatEntry, Kpis, Summary, SummaryMeta } from './api/types'
 
 /**
  * The clones `GET /repos` answers with, one named scenario per freshness of the
@@ -52,12 +52,19 @@ function summaryWith(meta: SummaryMeta, overrides: SummaryOverrides = {}): Summa
     buckets: [],
     previousWindowBuckets: null,
     trend: { comparable: false, percentage: null, previousWindowCommits: null, reason: 'full-window' },
-    kpis: { commits: 0, activeAuthors: 0, filesTouched: 0 },
+    kpis: { commits: 25, activeAuthors: 3, filesTouched: 12 },
     concentration: { authors: 0, percentage: 0 },
     meta,
     ...overrides,
   }
 }
+
+/**
+ * The KPIs of a window nobody touched. `summaryWith` defaults to a window that
+ * has commits, so a test naming these is a test about the empty window and only
+ * about it.
+ */
+const NO_COMMITS_KPIS: Kpis = { commits: 0, activeAuthors: 0, filesTouched: 0 }
 
 /** A bucket of the two series: `commits` for the pulse, `authors` for people. */
 function bucket(start: string, commits: number, authors = 1): Bucket {
@@ -485,4 +492,66 @@ test('the heat block hangs from the right column and reloads on a window change'
   })
   // Redrawn for the new window: the level the server anchors is back on screen.
   expect(await screen.findByText('web/')).toBeTruthy()
+})
+
+test('a window with zero commits shows the count and a cta to 12 meses', async () => {
+  const { urls } = stubApi({ lastCommitAt: '2026-08-13T09:00:00.000Z', fetchedAt: null, stale: false }, (window) =>
+    window === '30d'
+      ? { window: '30d', bucket: 'day', from: '2026-07-20T00:00:00.000Z', buckets: [], kpis: NO_COMMITS_KPIS }
+      : { buckets: [bucket('2026-07-01T00:00:00.000Z', 2), bucket('2026-08-01T00:00:00.000Z', 4)] },
+  )
+
+  render(<App />)
+  // The series on screen is the first window landed, so the click below trades
+  // a window that had commits for one that has none.
+  expect(await screen.findByTestId('pulse-current')).toBeTruthy()
+
+  fireEvent.click(screen.getByRole('button', { name: '30 días' }))
+
+  // The count and the window it belongs to, and the chart gone in its place.
+  expect(await screen.findByText('0 commits en 30 días')).toBeTruthy()
+  expect(screen.queryByTestId('pulse-current')).toBeNull()
+
+  fireEvent.click(screen.getByRole('button', { name: 'Ver 12 meses' }))
+
+  // The headline alone would not say the button leads anywhere: what does is
+  // that the request after the click is the one for the default window.
+  await waitFor(() => {
+    expect(urls.filter((url) => url.includes('/summary?')).map(windowOf)).toEqual(['12m', '30d', '12m'])
+  })
+})
+
+test('on the default window the empty window shows no cta', async () => {
+  stubApi({ lastCommitAt: '2026-08-13T09:00:00.000Z', fetchedAt: null, stale: false }, { kpis: NO_COMMITS_KPIS })
+
+  render(<App />)
+
+  // `12m` is the window the call to action points at, so standing on it there
+  // is nowhere left to go. The headline and the sentence are the empty window
+  // drawn, which is what makes the third assertion an absence.
+  expect(await screen.findByText('0 commits en 12 meses')).toBeTruthy()
+  expect(
+    screen.getByText(
+      /^Es una respuesta, no un fallo: el repo está quieto en esta ventana\. Su último commit fue (hoy|hace 1 día|hace \d+ días)\.$/,
+    ),
+  ).toBeTruthy()
+  expect(screen.queryByRole('button', { name: /^Ver / })).toBeNull()
+})
+
+test('a window with commits still draws the series', async () => {
+  stubApi(
+    { lastCommitAt: '2026-08-13T09:00:00.000Z', fetchedAt: null, stale: false },
+    {
+      buckets: [bucket('2026-07-01T00:00:00.000Z', 2), bucket('2026-08-01T00:00:00.000Z', 4)],
+      kpis: { commits: 6, activeAuthors: 2, filesTouched: 3 },
+    },
+  )
+
+  render(<App />)
+
+  // The commit count the payload carries is what decides: with commits in the
+  // window the chart and its bucket count stay, and no headline replaces them.
+  expect((await screen.findByTestId('pulse-current')).getAttribute('points')).toBe('0.0,102.5 600.0,6.0')
+  expect(screen.getByText('2 cubos')).toBeTruthy()
+  expect(screen.queryByText(/^0 commits en /)).toBeNull()
 })
