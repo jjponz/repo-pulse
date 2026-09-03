@@ -449,7 +449,7 @@ aserción, con el mismo nombre: `without dates the header shows neither` y
 carga, y la suite entera sigue verde.
 
 ```bash
-test "$(grep -c 'Cargando…' web/src/App.tsx web/src/App.test.tsx)" -eq 0   # expected: exit 0 — el texto viejo se fue
+test -z "$(grep -l 'Cargando…' web/src/App.tsx web/src/App.test.tsx)"   # expected: exit 0 — el texto viejo se fue
 test "$(grep -c 'repoNameOf' web/src/App.tsx)" -eq 0   # expected: exit 0 — la decisión vive en screen.ts
 npm test -w web   # expected: exit 0
 npm run build && npm run lint   # expected: exit 0
@@ -583,7 +583,10 @@ npm run build && npm run lint   # expected: exit 0
 ## 8. Global verification
 
 Los tres comandos de `AGENTS.md` desde la raíz, el recuento de los módulos que este slice crea, y
-el árbol limpio: cada tarea es un commit y al terminar no puede quedar nada sin commitear.
+el código todo commiteado: cada tarea es un commit y al terminar no puede quedar nada de `web/`
+ni de `server/` fuera. El control se acota a esos dos directorios a propósito: la contabilidad
+del propio loop bajo `docs/superpowers/` la escribe y la commitea el programa, y medirla aquí
+haría que este control no pudiera pasar nunca.
 
 ```bash
 npm run build   # expected: exit 0 — typecheck de los dos workspaces y bundle de web
@@ -591,7 +594,7 @@ npm test        # expected: exit 0 — las dos suites
 npm run lint    # expected: exit 0 — ESLint sobre todo el repo
 test "$(grep -c "^test('" web/src/screen.test.ts)" -eq 11   # expected: exit 0 — el módulo de decisión
 test "$(grep -c "^test('" web/src/App.test.tsx)" -eq 21   # expected: exit 0 — los cuatro criterios de extremo a extremo
-test -z "$(git status --porcelain)"   # expected: exit 0 — nada sin commitear
+test -z "$(git status --porcelain -- web server)"   # expected: exit 0 — nada del código sin commitear
 ```
 
 Y a ojo, que es lo que cierra el gate `visual`: `npm run build -w server` y `npm start -w server`
