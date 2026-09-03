@@ -1,22 +1,32 @@
 import { expect, test } from 'vitest'
 import {
+  analysingHeadline,
   bucketNoun,
   concentrationSentence,
+  emptyWindowCtaLabel,
+  emptyWindowHeadline,
+  emptyWindowSentence,
   fallbackNotice,
   formatDay,
   formatEdge,
   formatMonth,
+  freshSnapshotLine,
   heatFooter,
   mainFolderLabel,
+  noCommitsSentence,
   noHeatHeadline,
+  notAGitRepoSentence,
   previousWindowLabel,
   relativeDays,
+  staleBannerSentence,
+  staleSnapshotLine,
   trendArrow,
   trendHeadline,
   trendSentence,
   windowLabel,
   windowLabelLong,
 } from './format'
+import { DEFAULT_WINDOW } from './api/types'
 import type { Concentration, Trend } from './api/types'
 
 test('the full window declares there is nothing to compare', () => {
@@ -146,5 +156,58 @@ test('the fallback notice names the folder it fell back to', () => {
   )
   expect(fallbackNotice('')).toBe(
     'La carpeta principal guardada ya no existe en HEAD: el calor se acota a todo el repo.',
+  )
+})
+
+test('the empty window sentence drops the last commit clause when there is none', () => {
+  const now = new Date('2026-08-19T12:00:00Z')
+
+  expect(emptyWindowSentence('2026-05-27T12:00:00Z', now)).toBe(
+    'Es una respuesta, no un fallo: el repo está quieto en esta ventana. Su último commit fue hace 84 días.',
+  )
+  expect(emptyWindowSentence(null, now)).toBe(
+    'Es una respuesta, no un fallo: el repo está quieto en esta ventana.',
+  )
+  expect(emptyWindowSentence(null, now)).not.toContain('último commit')
+})
+
+test('the analysing headline names the repo it is walking', () => {
+  expect(analysingHeadline('tienda-web')).toBe('Analizando tienda-web…')
+})
+
+test('the empty window headline names the window in its long form', () => {
+  expect(emptyWindowHeadline('30d')).toBe('0 commits en 30 días')
+  expect(emptyWindowHeadline('all')).toBe('0 commits en todo el historial')
+})
+
+test('the cta offers the default window by its long name', () => {
+  expect(emptyWindowCtaLabel(DEFAULT_WINDOW)).toBe('Ver 12 meses')
+  expect(emptyWindowCtaLabel('all')).toBe('Ver todo el historial')
+})
+
+test('the not-a-git-repo sentence names the folder', () => {
+  expect(notAGitRepoSentence('notas-producto')).toBe(
+    'En la carpeta notas-producto no hay ningún directorio .git, así que no hay historial que medir.',
+  )
+})
+
+test('the no-commits sentence names the repo', () => {
+  expect(noCommitsSentence('sandbox-notas')).toBe(
+    'sandbox-notas es un repo git válido, pero su historial está vacío. No hay pulso que contar todavía.',
+  )
+})
+
+test('the fresh snapshot line and the stale one differ in more than the date', () => {
+  const now = new Date('2026-08-19T12:00:00Z')
+
+  expect(freshSnapshotLine('2026-08-19T09:00:00Z', now)).toBe('Foto local al día · traída hoy')
+  expect(staleSnapshotLine('2026-07-24T12:00:00Z', now)).toBe('Foto local traída hace 26 días')
+})
+
+test('the stale banner says how long ago the clone was fetched', () => {
+  const now = new Date('2026-08-19T12:00:00Z')
+
+  expect(staleBannerSentence('2026-07-24T12:00:00Z', now)).toBe(
+    'Foto local desactualizada: el clon se trajo hace 26 días. Lo que ves puede ir por detrás del remoto.',
   )
 })

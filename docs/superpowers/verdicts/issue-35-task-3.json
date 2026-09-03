@@ -1,0 +1,57 @@
+{
+  "issue": 35,
+  "task": 3,
+  "task_name": "`format.ts`: el castellano de los cinco estados",
+  "verdict": {
+    "ruling": "PASS",
+    "rubric": [
+      {
+        "rule": "objetivo",
+        "result": "El objetivo pide que el texto que lee una persona entre en el unico modulo que convierte el payload a castellano, con su cadena literal pinchada. El diff añade las nueve funciones y las cinco constantes en web/src/format.ts (lineas 144-191 del fichero resultante) y ocho tests de cadena literal en web/src/format.test.ts. Cada mitad del objetivo esta localizada: el castellano nuevo vive solo en format.ts (ningun otro fichero se toca) y cada cadena queda fijada por un toBe con el texto exacto. No hay nada en el diff que no sirva a esa frase.",
+        "outcome": "conforme"
+      },
+      {
+        "rule": "asercion-tdd",
+        "result": "El **TDD:** nombra test('the empty window sentence drops the last commit clause when there is none') y fija la asercion: con null la frase termina en 'esta ventana.' y no contiene 'último commit'. El test existe en format.test.ts:162-172 y hace exactamente eso: toBe de la frase completa con clausula ('... Su último commit fue hace 84 días.'), toBe de la frase que termina en 'esta ventana.' con null, y un .not.toContain('último commit') sobre el mismo caso null. Entrada, valor esperado y objeto de la asercion coinciden con la frase escrita en el plan. Los 84 dias son ciertos (2026-05-27 -> 2026-08-19 son 84 dias), asi que la asercion puede fallar por la razon que su nombre da.",
+        "outcome": "conforme"
+      },
+      {
+        "rule": "contrato",
+        "result": "Comparado simbolo a simbolo el bloque Contract (web/src/format.ts) con format.ts:144-191. Las nueve firmas coinciden en nombre, nombre y orden de parametros y tipo de retorno: analysingHeadline(repoName: string), emptyWindowHeadline(window: TimeWindow), emptyWindowSentence(lastCommitAt: string | null, now: Date), emptyWindowCtaLabel(window: TimeWindow), notAGitRepoSentence(repoId: string), noCommitsSentence(repoName: string), freshSnapshotLine/staleSnapshotLine/staleBannerSentence(fetchedAt: string, now: Date). Las cinco constantes llevan el valor literal exacto del contrato (NOT_A_GIT_REPO_HEADLINE, DETECTED_CLONES_LABEL, NO_COMMITS_HEADLINE, NO_COMMITS_FOOTNOTE, NO_HISTORY_META). Las cadenas exactas del brief se cumplen una por una, incluido el detalle de usar windowLabelLong y no windowLabel (format.ts:156 y 160) y el de relativeDays como reloj (156... 148, 182, 186, 190). Las dos lineas que hoy viven en Header.tsx:105-106 se mueven tal cual, caracter a caracter.",
+        "outcome": "conforme"
+      },
+      {
+        "rule": "decisiones-cerradas",
+        "result": "Filas que tocan este diff: 'Donde vive el castellano nuevo -> web/src/format.ts' se cumple (no se añade castellano en ningun otro fichero). 'Ventana a la que apunta la llamada a la accion -> DEFAULT_WINDOW, es decir 12m' se cumple: emptyWindowCtaLabel recibe la ventana y el test la pincha con DEFAULT_WINDOW, que en web/src/api/types.ts:111 es '12m', dando 'Ver 12 meses'. 'Quien decide si la foto esta caducada -> el servidor; la interfaz no repite el umbral de siete dias': el diff no introduce ningun umbral, deja freshSnapshotLine y staleSnapshotLine como dos frases separadas y no decide cual toca. 'De donde sale la frescura de la foto -> del Clone': las firmas toman fetchedAt: string y no leen summary.meta, asi que no contradicen la fila. Las filas sobre el vocabulario Screen, el despacho en TSX y la exposicion de componentes .tsx no tienen sujeto en este diff (no hay .tsx ni screen.ts). Ninguna fila se reabre.",
+        "outcome": "conforme"
+      },
+      {
+        "rule": "patrones",
+        "result": "Ejemplares: el diff es el idioma exacto de web/src/format.ts y web/src/format.test.ts que el plan nombra — funciones exportadas que devuelven una cadena, una constante nombrada para el texto compartido, y tests que pinchan la cadena literal con toBe. Vara del repo (AGENTS.md): identificadores, nombres de test y constantes en ingles y texto visible en castellano (cumple); TypeScript estricto y ESM sin sufijo en web/ (cumple, imports './format' y './api/types'); frontera web/ no importa de server/ (cumple: solo importa de './api/types'); Security & data handling — ninguna cadena nueva mete nombre ni email de autor en el DOM (cumple); regla boy scout — no se toca codigo en castellano. Vara de ct: style.md — format.ts es un modulo que ya estaba, con prosa en su cabecera y funciones a nivel de modulo, deuda declarada; lo añadido sigue el estilo del anfitrion (funciones libres) y no es hallazgo, y ademas no añade ni un comentario. No es un concepto nuevo metido en un fichero viejo para heredar la exencion: el concepto de este modulo es precisamente 'el payload en ingles se vuelve castellano', y la decision cerrada lo dice. architecture.md aplica a modulos nuevos y aqui no hay ninguno. decisions.md: la regla de los dias relativos no se reescribe, se reutiliza relativeDays; el umbral de frescura no se copia del servidor. Patron de entrega: las dos frases de Header.tsx:105-106 quedan por ahora duplicadas (una copia en format.ts y la inline en Header.tsx), que es expand: el plan secuencia el recableado en la tarea 6 ('Task 6 — Header.tsx y StaleNotice.tsx') y el **Files:** de esta tarea no incluye Header.tsx, asi que el diff no podia contraerla; lo declaro y no lo cuento como hallazgo. defects.md, regla a regla: (1) vocabulario cerrado — el sujeto es TimeWindow, y el despacho se hace via windowLabelLong, switch exhaustivo sin rama por defecto; no se compara ninguna cadena a mano ni se introduce booleano clasificador; conforme. (2) mapa crudo como retorno de logica — sin sujeto: las nueve funciones devuelven string y las constantes son string. (3) dos campos que tienen que estar de acuerdo / centinela — sin sujeto nuevo: la ausencia del ultimo commit viaja en el tipo (string | null, como manda el contrato y como ya hace formatEdge), no en una cadena vacia ni en un cero; freshSnapshotLine y staleSnapshotLine son dos frases distintas y quien elige es el flag stale del servidor, no un par de campos que este diff cree. (4) error nombrado por donde ocurre — sin sujeto: el diff no declara ni lanza ningun error.",
+        "outcome": "conforme"
+      },
+      {
+        "rule": "manipulacion-tests",
+        "result": "No aplica: el diff de web/src/format.test.ts son 63 lineas de insercion y ninguna de borrado (el diffstat dice '112 insertions(+)' y no hay ni una linea '-' en el hunk del test). Ninguna asercion, caso ni test preexistente se quita, se relaja ni se reescribe; los diecinueve tests de antes siguen intactos.",
+        "outcome": "conforme"
+      },
+      {
+        "rule": "fixture-theater",
+        "result": "El efecto que promete el objetivo lo produce codigo de produccion: las nueve funciones y las cinco constantes viven en web/src/format.ts:144-191, que no es fichero de test. Cada asercion nueva llama a una de esas funciones importada de './format' y compara con la cadena literal; revertidas las lineas de produccion, el modulo no exportaria esos simbolos y los ocho tests caerian (de hecho no compilaria). No hay mock, stub ni fixture que fabrique el texto.",
+        "outcome": "conforme"
+      },
+      {
+        "rule": "alcance",
+        "result": "Dentro de los dos ficheros declarados, todo lo escrito lo pide una frase de la tarea: las nueve funciones y las cinco constantes estan en el bloque Contract, la constante privada EMPTY_WINDOW_SENTENCE es la mitad compartida de la frase que el contrato exige en sus dos variantes, y los ocho tests son literalmente los ocho nombres de **Tests:**. Nada de lo que '### Out of scope' nombra aparece: no hay boton 'Traer cambios', ni progreso por pasos, ni boton 'Elegir otra carpeta…', ni chips de estado de demo, y no se toca nada del servidor. Las constantes que todavia no tiene consumidor (DETECTED_CLONES_LABEL, NO_COMMITS_FOOTNOTE, NO_HISTORY_META) las pide el contrato de esta tarea y las consumen las tareas 4-6. No hay refactor, rename ni arreglo adyacente.",
+        "outcome": "conforme"
+      },
+      {
+        "rule": "test-desiderata",
+        "result": "Ocho tests nuevos, medidos con las tres propiedades. Deterministas: los cinco que dependen del tiempo construyen su propio now (new Date('2026-08-19T12:00:00Z')) y lo pasan como parametro; no hay reloj real, ni red, ni fichero, ni aleatoriedad, ni sleep — relativeDays recibe el ahora, no lo lee. Aislados: cada test declara sus valores dentro de su cuerpo, no hay estado mutable compartido, ni fichero, puerto o directorio, ni dependencia del orden del fichero. Verifican comportamiento real: cada asercion es un toBe contra la cadena que devuelve la funcion de produccion importada de './format', no contra scaffolding del test; el unico valor importado, DEFAULT_WINDOW, viene de produccion (web/src/api/types.ts:111) y ata el test a la decision cerrada en vez de repetir '12m' a mano. No reporto nada de la mitad fina: el unico reparo posible —que 'the fresh snapshot line and the stale one differ in more than the date' cubre dos funciones en un test— es el nombre que el propio **Tests:** del brief prescribe, asi que no es del implementador.",
+        "outcome": "conforme"
+      }
+    ],
+    "findings": [],
+    "review_token": "8ee753bf67adedcac0312a05efbc9faa16041abffc78c20e92d129441b65571a"
+  }
+}
