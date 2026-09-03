@@ -1,0 +1,57 @@
+{
+  "issue": 35,
+  "task": 1,
+  "task_name": "`screen.ts`: el vocabulario de pantallas y la decisión",
+  "verdict": {
+    "ruling": "PASS",
+    "rubric": [
+      {
+        "rule": "objetivo",
+        "result": "El objetivo promete tres cosas: un modulo puro, una sola sede de la decision, y un vocabulario cerrado que cubre cada estado de carga del resumen. Las tres estan en el diff. Puro: web/src/screen.ts solo importa './api/types' (tipos del payload y DEFAULT_WINDOW); ni React, ni cliente de API, ni lectura de reloj. Una sola sede: ScreenChoice.of es el unico punto de entrada y los cuatro metodos privados (afterFailure, afterSummary, activityIn, ctaFrom, repoNameOf) cuelgan de la misma clase. Vocabulario cerrado: Screen con sus cinco miembros y un switch sobre load.status con los tres casos y sin rama por defecto. Ningun estado del vocabulario SummaryLoad queda sin pantalla. No hay lineas que produzcan nada que el objetivo no nombre.",
+        "outcome": "conforme"
+      },
+      {
+        "rule": "asercion-tdd",
+        "result": "El **TDD:** pide rojo primero con test('a repo with no head sha is the no-commits screen, not an empty window'), y fija la asercion: un 'loaded' con headSha: null y kpis.commits: 0 da kind 'no-commits', no 'blocks'. El test del diff (screen.test.ts:144-148) usa SummaryMother.withNoHistory(), que es base('12m') con headSha: null y from: null, y base fija kpis: { commits: 0, ... }: los dos antecedentes que la frase exige estan en la entrada. La asercion es expect(screen).toEqual({ kind: 'no-commits', repoName: 'repo-pulse' }), es decir el valor esperado que la frase escribe. Y clava el orden que dice clavar: si activityIn se evaluase antes que la rama headSha === null, el resultado seria { kind: 'blocks', ... } y el toEqual caeria. Es el test que el plan pidio.",
+        "outcome": "conforme"
+      },
+      {
+        "rule": "contrato",
+        "result": "Comparado nombre a nombre contra el bloque Contract (web/src/screen.ts). SummaryLoad: los tres miembros con status 'loading' | 'loaded'+summary | 'failed'+code, identicos. EmptyWindowCta: 'switch'+window | 'already-there', identico. Activity: 'series' | 'empty-window'+cta, identico. Screen: los cinco miembros con exactamente los campos declarados (analysing+repoName, not-a-git-repo+repoId+clones readonly Clone[], no-commits+repoName, failed+code, blocks+repoName+summary+activity). Selection: repos readonly Clone[], repoId, load, en ese orden. ScreenChoice.of(selection: Selection): Screen, estatico y exportado. La regla exacta del brief se cumple en su orden: afterFailure devuelve 'not-a-git-repo' con repoId y clones = selection.repos entera solo para el codigo 'not-a-git-repo' y 'failed' con su codigo para cualquier otro; 'loading' da 'analysing'; headSha === null da 'no-commits' ANTES de mirar commits; kpis.commits === 0 da blocks+empty-window; el resto blocks+series. repoNameOf: repos.find(id === repoId)?.name ?? repoId, tal cual la frase. ctaFrom: 'already-there' cuando window === DEFAULT_WINDOW, si no 'switch' a DEFAULT_WINDOW. No hay bloques Current state ni Call site en esta tarea (ambos ficheros son create).",
+        "outcome": "conforme"
+      },
+      {
+        "rule": "decisiones-cerradas",
+        "result": "Fila a fila. 'Donde vive la decision': modulo nuevo web/src/screen.ts, puro sin React/fetch/reloj — cumplida. 'Forma de esa decision': vocabulario cerrado Screen de cinco miembros y despacho exhaustivo sin rama por defecto — cumplida (switch de tres casos, sin default; el ternario de afterFailure no es una rama por defecto que colapse estados: el codigo viaja en el miembro 'failed', y esa particion la escribe el propio brief). 'Que sustituye al par summary/error': un solo estado load: SummaryLoad de tres miembros — cumplida, es el tipo que el modulo declara y consume. 'Quien decide el nombre del repo': ScreenChoice, una sola vez — cumplida en repoNameOf (la mitad de esa fila que borra el repoNameOf de App.tsx es de otra tarea; ver patrones). 'Ventana a la que apunta la llamada a la accion': DEFAULT_WINDOW = 12m, y en esa ventana no se dibuja — cumplida via 'already-there'. Filas que este diff no roza y por tanto no son hallazgo: despacho en TSX, frescura desde Clone, quien decide stale, castellano en format.ts, componentes de un .tsx nuevo/ya existente, referencia visual. Ninguna fila queda implementada con otro valor.",
+        "outcome": "conforme"
+      },
+      {
+        "rule": "patrones",
+        "result": "EJEMPLARES: heat-rows.ts/.test.ts es el modulo puro de decisiones pinchado con cadenas exactas, y el diff hace lo mismo (entradas de datos, salidas comparadas con literales: 'no-commits', 'git-failed', '12m'). Donde el ejemplar y la regla discrepan gana la regla: heat-rows.ts lleva prosa y funciones a nivel de modulo, y screen.ts —modulo NUEVO— no las lleva; heat-rows.test.ts tiene helpers dir()/file() a nivel de modulo y screen.test.ts los cuelga de ScreenProbe/CloneMother/SummaryMother/SelectionMother. api/types.ts es el ejemplar de donde salen los contratos del payload, y de ahi importa el modulo. REGLAS DEL REPO (AGENTS.md): TypeScript estricto y ESM sin sufijo .js en web/ — cumplido; codigo en ingles (identificadores, nombres de test, mensaje de error 'not an empty window') — cumplido; texto visible en castellano — no hay texto visible en este modulo; sin nombres ni emails de autores en el DOM — el modulo no toca autoria (solo cuenta authors); web/ no importa de server/ — solo importa './api/types'. VARA DE ct: style.md (modulo nuevo, nace conforme): sin prosa, ingles, toda funcion colgando de un tipo (clase ScreenChoice con estaticos) — conforme. architecture.md (aplica a modulos nuevos): un concepto por modulo; SummaryLoad, Selection, Activity y EmptyWindowCta no tienen vida sin la decision de pantalla y ademas el bloque Contract del brief los declara en este mismo fichero; la dependencia va hacia los contratos del payload declarados a mano en web/, que es la frontera que AGENTS.md prescribe, y no hay import inverso ni cast. decisions.md: la particion del vocabulario de pantallas no esta declarada en ningun otro sitio de web/ (grep de 'not-a-git-repo', 'headSha === null' y 'kpis.commits === 0' solo da screen.ts y sus tipos). CHOQUE DECLARADO, no hallazgo: App.tsx:116-118 conserva hoy su propio repoNameOf identico al de ScreenChoice, asi que la regla del nombre del repo queda escrita dos veces de forma transitoria; la decision cerrada dice que App.tsx pierde el suyo, pero el **Files:** de esta tarea es solo screen.ts y screen.test.ts, de modo que quitarlo aqui seria fuera de alcance y ademas rompaeria la comprobacion mecanica de rutas. Ese choque es del troceado del plan, no del implementador. Igual trato para la forma del miembro 'blocks', que lleva summary y activity aun siendo activity derivable de summary: el bloque Contract la escribe asi literalmente. DEFECTS.md, sus cuatro reglas: (1) vocabulario cerrado — es justo lo que el diff introduce: uniones discriminadas por 'kind'/'status', ausencias como miembros ('already-there' en vez de window nullable, 'no-commits' en vez de un booleano), y el despacho de of() sin catch-all; sin hallazgo. (2) mapa crudo como retorno de logica — no hay ninguno: el retorno es el tipo Screen y la entrada el tipo Selection; sin sujeto mas alla de eso, sin hallazgo. (3) dos campos que tienen que estar de acuerdo / centinelas — el modulo existe para eliminar el par summary/error, y no introduce centinelas (ni cadena vacia por 'sin mensaje' ni 0 por 'nunca'); la pareja summary+activity del miembro 'blocks' esta prescrita palabra por palabra en el Contract, declarada arriba y no contada como hallazgo. (4) error nombrado por lo que pasa — el unico error del diff es new Error('not an empty window: ...') en el probe de test, nombrado por lo que ocurre, no por donde; sin hallazgo. No he necesitado cargar ninguna skill: §3 no nombra ninguna.",
+        "outcome": "conforme"
+      },
+      {
+        "rule": "manipulacion-tests",
+        "result": "No aplica: el diff son dos ficheros nuevos (new file mode 100644 en los dos) y no tiene ni una linea '-'. No hay ninguna asercion, caso o test preexistente que se haya podido quitar, relajar o reescribir.",
+        "outcome": "no-aplica"
+      },
+      {
+        "rule": "fixture-theater",
+        "result": "El comportamiento que promete el objetivo lo produce codigo de produccion: web/src/screen.ts:36-63 (afterFailure, afterSummary, activityIn, ctaFrom, repoNameOf). Las madres del test solo construyen entradas (Clone, Summary, Selection) y ScreenProbe solo extrae el cta del miembro 'blocks' para poder aserlo; ninguna de ellas decide la pantalla ni devuelve un Screen. Cada asercion compara la salida de ScreenChoice.of, de modo que revertir las lineas de screen.ts dejaria los siete tests en rojo (y ni compilarian). No hay valor esperado que salga del propio andamiaje.",
+        "outcome": "conforme"
+      },
+      {
+        "rule": "alcance",
+        "result": "Dentro de los dos ficheros declarados no hay nada que el texto de la tarea no pida. screen.ts declara exactamente los seis simbolos del bloque Contract y ni uno mas; los cinco metodos privados son el desglose de la regla exacta que el brief escribe. screen.test.ts trae los siete tests con los siete nombres de la linea **Tests:**, sin extras; las madres y el probe son el andamiaje que testing.md exige para esos tests. Nada de lo que ### Out of scope nombra por su nombre aparece: no hay boton 'Traer cambios', ni progreso por pasos, ni boton 'Elegir otra carpeta...', ni chips de estado de demo, y el modulo no toca el servidor ni repite el umbral de siete dias (no hay ni una mencion de stale ni de summary.meta). Ningun refactor colateral: los ficheros que ya estaban siguen intactos (App.tsx conserva su repoNameOf, ver patrones).",
+        "outcome": "conforme"
+      },
+      {
+        "rule": "test-desiderata",
+        "result": "Los siete tests que aniade web/src/screen.test.ts cumplen las tres propiedades que bloquean. Deterministas: cero reloj y cero fecha de hoy (todas las fechas son literales fijos, '2026-08-19T10:00:00Z', '2025-09-01T00:00:00Z'), cero red, cero disco, cero aleatoriedad, cero sleep; el mismo codigo da el mismo resultado manana. Aislados: no hay estado mutable compartido que nadie reinicie —SelectionMother.REPOS es un readonly Clone[] que ningun test muta, y cada madre devuelve objetos nuevos—, no hay fichero, puerto ni directorio, y ninguno depende del orden ni de lo que dejo el anterior (cada uno construye su Selection completa). Verifican comportamiento real: toda asercion es sobre el valor que devuelve ScreenChoice.of, no sobre un mock, un stub ni una constante que el test acabe de definir; con las lineas de produccion revertidas ninguno pasaria. Nada que reportar en la mitad fina, asi que no he tenido que cargar la skill de TDD para citarla: no hay hallazgo de estilo de test que quiera sostener. Observaciones que no son hallazgo: tres tests agrupan dos casos de la misma regla (repo listado y no listado; dos codigos de fallo; switch y already-there), pero esa agrupacion es la lista de siete nombres que el propio plan escribio.",
+        "outcome": "conforme"
+      }
+    ],
+    "findings": [],
+    "review_token": "2ea7177ebee1072d48eb30957d8a473589bc22073ea3c9bf23ce394e9ae550b5"
+  }
+}
