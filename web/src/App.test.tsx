@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { expect, test, vi } from 'vitest'
 import App from './App'
-import type { Bucket, Clone, Heat, HeatEntry, Summary, SummaryMeta } from './api/types'
+import type { ApiErrorCode, Bucket, Clone, Heat, HeatEntry, Summary, SummaryMeta } from './api/types'
 
 const CLONES: Clone[] = [
   {
@@ -110,6 +110,72 @@ function windowOf(url: string): string {
   return new URL(url, 'http://test.invalid').searchParams.get('window') ?? ''
 }
 
+/** How the summary endpoint answers when it never lands as a payload. */
+type UnlandedSummary = { kind: 'failed'; code: ApiErrorCode } | { kind: 'pending' }
+
+/**
+ * Doubles `fetch` with a clone list that lands and a summary that does not.
+ * `failed` answers the error envelope the shell tells cases apart by, and
+ * `pending` never settles, which is what pins the screen drawn while a load is
+ * still in flight without leaning on a timer.
+ */
+function stubApiWithoutSummary(answer: UnlandedSummary): void {
+  vi.stubGlobal('fetch', (url: string): Promise<Response> => {
+    if (url === '/api/repos') {
+      return Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve({ repos: CLONES }),
+      } as unknown as Response)
+    }
+    switch (answer.kind) {
+      case 'pending':
+        return new Promise<Response>(() => undefined)
+      case 'failed':
+        return Promise.resolve({
+          ok: false,
+          status: 400,
+          json: () => Promise.resolve({ error: { code: answer.code, message: 'answered by the double' } }),
+        } as unknown as Response)
+    }
+  })
+}
+
+test('a folder without .git shows the designed screen with the list of clones', async () => {
+  stubApiWithoutSummary({ kind: 'failed', code: 'not-a-git-repo' })
+
+  render(<App />)
+
+  expect(await screen.findByText('Esa carpeta no es un repositorio git')).toBeTruthy()
+  // The way out the screen offers is the detected clone, named as the header
+  // names it and pointing at the folder it lives in.
+  expect(screen.getByRole('button', { name: /alpha-clone/ }).textContent).toBe('alpha-clone · /git/alpha')
+  // The generic failure line in its place is exactly what this state replaces:
+  // with it on screen the folder would read as broken instead of unmeasurable.
+  expect(screen.queryByText(/No se ha podido cargar la información/)).toBeNull()
+})
+
+test('while the summary loads the shell shows the analysing screen', async () => {
+  stubApiWithoutSummary({ kind: 'pending' })
+
+  render(<App />)
+
+  // The name is the clone's, so the list landed; the summary did not, which is
+  // the state this screen belongs to.
+  expect(await screen.findByText('Analizando alpha-clone…')).toBeTruthy()
+  expect(screen.getByRole('progressbar')).toBeTruthy()
+  expect(screen.queryByText('Pulso')).toBeNull()
+})
+
+test('a repo with no commits shows the designed screen instead of the blocks', async () => {
+  stubApi({ lastCommitAt: null, fetchedAt: null, stale: false }, { headSha: null })
+
+  render(<App />)
+
+  expect(await screen.findByText('Repositorio sin commits')).toBeTruthy()
+  expect(screen.getByText('Cuando entre el primer commit, esta pantalla se llena sola.')).toBeTruthy()
+  expect(screen.queryByText('Pulso')).toBeNull()
+})
+
 test('the header shows the last commit and the fetch date', async () => {
   stubApi({ lastCommitAt: '2026-08-13T09:00:00.000Z', fetchedAt: '2026-08-18T09:00:00.000Z', stale: false })
 
@@ -124,12 +190,12 @@ test('without dates the header shows neither', async () => {
 
   render(<App />)
 
-  // The path of the selected clone and the gone placeholder prove both loads
-  // landed, so the two absences below are absences and not an empty screen.
-  expect(await screen.findByText('/git/alpha')).toBeTruthy()
-  await waitFor(() => {
-    expect(screen.queryByText('Cargando…')).toBeNull()
-  })
+  // The blocks on screen are the summary landed and the analysing screen left
+  // behind, so the two absences below are absences and not a screen still
+  // loading; the path of the selected clone is the clone list landed.
+  expect(await screen.findByText('Pulso')).toBeTruthy()
+  expect(screen.getByText('/git/alpha')).toBeTruthy()
+  expect(screen.queryByText('Analizando alpha-clone…')).toBeNull()
   expect(screen.queryByText(/último commit/)).toBeNull()
   expect(screen.queryByText(/traída/)).toBeNull()
 })
@@ -138,14 +204,18 @@ test('changing the window asks the API for that window', async () => {
   const { urls } = stubApi({ lastCommitAt: null, fetchedAt: null, stale: false })
 
   render(<App />)
-  await waitFor(() => {
-    expect(urls.at(-1)).toContain('window=12m')
-  })
+  // The blocks up and the analysing headline gone are the first summary
+  // landed, so the click below changes a window the shell has already asked
+  // the API for once.
+  expect(await screen.findByText('Pulso')).toBeTruthy()
+  expect(screen.queryByText('Analizando alpha-clone…')).toBeNull()
 
   fireEvent.click(screen.getByRole('button', { name: 'todo' }))
 
+  // The summary requests and only those: the heat block carries the window in
+  // its URL too, and it must not be what makes this pass.
   await waitFor(() => {
-    expect(urls.at(-1)).toContain('window=all')
+    expect(urls.filter((url) => url.includes('/summary?')).map(windowOf)).toEqual(['12m', 'all'])
   })
 })
 
