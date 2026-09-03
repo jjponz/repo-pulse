@@ -1,20 +1,37 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { expect, test, vi } from 'vitest'
 import App from './App'
-import type { Bucket, Clone, Heat, HeatEntry, Summary, SummaryMeta } from './api/types'
+import type { ApiErrorCode, Bucket, Clone, Heat, HeatEntry, Kpis, Summary, SummaryMeta } from './api/types'
 
-const CLONES: Clone[] = [
-  {
-    // Id and name differ on purpose: the URLs are built from the id, and what
-    // the screen calls the repo is the name.
-    id: 'alpha',
-    name: 'alpha-clone',
-    path: '/git/alpha',
-    lastCommitAt: '2026-08-13T09:00:00.000Z',
-    fetchedAt: '2026-08-18T09:00:00.000Z',
-    stale: false,
-  },
-]
+/**
+ * The clones `GET /repos` answers with, one named scenario per freshness of the
+ * local snapshot: freshness is the clone's business and never `summary.meta`'s,
+ * so a test that cares about it says which clone it is about.
+ */
+class CloneMother {
+  /** Id and name differ on purpose: the URLs are built from the id, and what the screen calls the repo is the name. */
+  static fresh(): Clone {
+    return {
+      id: 'alpha',
+      name: 'alpha-clone',
+      path: '/git/alpha',
+      lastCommitAt: '2026-08-13T09:00:00.000Z',
+      fetchedAt: '2026-08-18T09:00:00.000Z',
+      stale: false,
+    }
+  }
+
+  /** Brought in long enough ago that the server declared it stale. */
+  static staleSince(fetchedAt: string): Clone {
+    return { ...CloneMother.fresh(), fetchedAt, stale: true }
+  }
+
+  static neverFetched(): Clone {
+    return { ...CloneMother.fresh(), fetchedAt: null, stale: false }
+  }
+}
+
+const CLONES: readonly Clone[] = [CloneMother.fresh()]
 
 /**
  * Overrides for the summary payload. `Record<string, unknown>` on top of
@@ -35,12 +52,19 @@ function summaryWith(meta: SummaryMeta, overrides: SummaryOverrides = {}): Summa
     buckets: [],
     previousWindowBuckets: null,
     trend: { comparable: false, percentage: null, previousWindowCommits: null, reason: 'full-window' },
-    kpis: { commits: 0, activeAuthors: 0, filesTouched: 0 },
+    kpis: { commits: 25, activeAuthors: 3, filesTouched: 12 },
     concentration: { authors: 0, percentage: 0 },
     meta,
     ...overrides,
   }
 }
+
+/**
+ * The KPIs of a window nobody touched. `summaryWith` defaults to a window that
+ * has commits, so a test naming these is a test about the empty window and only
+ * about it.
+ */
+const NO_COMMITS_KPIS: Kpis = { commits: 0, activeAuthors: 0, filesTouched: 0 }
 
 /** A bucket of the two series: `commits` for the pulse, `authors` for people. */
 function bucket(start: string, commits: number, authors = 1): Bucket {
@@ -85,18 +109,20 @@ function heatUrls(urls: readonly string[]): string[] {
  * requested URL so a test can look at the last one. `vi.unstubAllGlobals()` in
  * the setup file undoes the stub after each test. `overrides` can also be a
  * function of the requested window, which is how a test gives two windows two
- * different payloads.
+ * different payloads. `clones` is what `GET /repos` answers, which is where the
+ * freshness of the local snapshot comes from.
  */
 function stubApi(
   meta: SummaryMeta,
   overrides: SummaryOverrides | ((window: string) => SummaryOverrides) = {},
+  clones: readonly Clone[] = CLONES,
 ): { urls: string[] } {
   const urls: string[] = []
   vi.stubGlobal('fetch', (url: string) => {
     urls.push(url)
     const body =
       url === '/api/repos'
-        ? { repos: CLONES }
+        ? { repos: clones }
         : url.includes('/heat?')
           ? heatFor(url)
           : summaryWith(meta, typeof overrides === 'function' ? overrides(windowOf(url)) : overrides)
@@ -110,6 +136,72 @@ function windowOf(url: string): string {
   return new URL(url, 'http://test.invalid').searchParams.get('window') ?? ''
 }
 
+/** How the summary endpoint answers when it never lands as a payload. */
+type UnlandedSummary = { kind: 'failed'; code: ApiErrorCode } | { kind: 'pending' }
+
+/**
+ * Doubles `fetch` with a clone list that lands and a summary that does not.
+ * `failed` answers the error envelope the shell tells cases apart by, and
+ * `pending` never settles, which is what pins the screen drawn while a load is
+ * still in flight without leaning on a timer.
+ */
+function stubApiWithoutSummary(answer: UnlandedSummary): void {
+  vi.stubGlobal('fetch', (url: string): Promise<Response> => {
+    if (url === '/api/repos') {
+      return Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve({ repos: CLONES }),
+      } as unknown as Response)
+    }
+    switch (answer.kind) {
+      case 'pending':
+        return new Promise<Response>(() => undefined)
+      case 'failed':
+        return Promise.resolve({
+          ok: false,
+          status: 400,
+          json: () => Promise.resolve({ error: { code: answer.code, message: 'answered by the double' } }),
+        } as unknown as Response)
+    }
+  })
+}
+
+test('a folder without .git shows the designed screen with the list of clones', async () => {
+  stubApiWithoutSummary({ kind: 'failed', code: 'not-a-git-repo' })
+
+  render(<App />)
+
+  expect(await screen.findByText('Esa carpeta no es un repositorio git')).toBeTruthy()
+  // The way out the screen offers is the detected clone, named as the header
+  // names it and pointing at the folder it lives in.
+  expect(screen.getByRole('button', { name: /alpha-clone/ }).textContent).toBe('alpha-clone · /git/alpha')
+  // The generic failure line in its place is exactly what this state replaces:
+  // with it on screen the folder would read as broken instead of unmeasurable.
+  expect(screen.queryByText(/No se ha podido cargar la información/)).toBeNull()
+})
+
+test('while the summary loads the shell shows the analysing screen', async () => {
+  stubApiWithoutSummary({ kind: 'pending' })
+
+  render(<App />)
+
+  // The name is the clone's, so the list landed; the summary did not, which is
+  // the state this screen belongs to.
+  expect(await screen.findByText('Analizando alpha-clone…')).toBeTruthy()
+  expect(screen.getByRole('progressbar')).toBeTruthy()
+  expect(screen.queryByText('Pulso')).toBeNull()
+})
+
+test('a repo with no commits shows the designed screen instead of the blocks', async () => {
+  stubApi({ lastCommitAt: null, fetchedAt: null, stale: false }, { headSha: null })
+
+  render(<App />)
+
+  expect(await screen.findByText('Repositorio sin commits')).toBeTruthy()
+  expect(screen.getByText('Cuando entre el primer commit, esta pantalla se llena sola.')).toBeTruthy()
+  expect(screen.queryByText('Pulso')).toBeNull()
+})
+
 test('the header shows the last commit and the fetch date', async () => {
   stubApi({ lastCommitAt: '2026-08-13T09:00:00.000Z', fetchedAt: '2026-08-18T09:00:00.000Z', stale: false })
 
@@ -120,32 +212,96 @@ test('the header shows the last commit and the fetch date', async () => {
 })
 
 test('without dates the header shows neither', async () => {
-  stubApi({ lastCommitAt: null, fetchedAt: null, stale: false })
+  stubApi({ lastCommitAt: null, fetchedAt: null, stale: false }, {}, [CloneMother.neverFetched()])
 
   render(<App />)
 
-  // The path of the selected clone and the gone placeholder prove both loads
-  // landed, so the two absences below are absences and not an empty screen.
-  expect(await screen.findByText('/git/alpha')).toBeTruthy()
-  await waitFor(() => {
-    expect(screen.queryByText('Cargando…')).toBeNull()
-  })
+  // The blocks on screen are the summary landed and the analysing screen left
+  // behind, so the two absences below are absences and not a screen still
+  // loading; the path of the selected clone is the clone list landed.
+  expect(await screen.findByText('Pulso')).toBeTruthy()
+  expect(screen.getByText('/git/alpha')).toBeTruthy()
+  expect(screen.queryByText('Analizando alpha-clone…')).toBeNull()
   expect(screen.queryByText(/último commit/)).toBeNull()
   expect(screen.queryByText(/traída/)).toBeNull()
+})
+
+test('a clone fetched more than seven days ago shows the stale banner', async () => {
+  // `meta` says the snapshot is up to date on purpose: the verdict travels in
+  // the clone, so a header reading `meta.stale` would draw the fresh line here.
+  stubApi({ lastCommitAt: '2026-08-13T09:00:00.000Z', fetchedAt: '2026-08-18T09:00:00.000Z', stale: false }, {}, [
+    CloneMother.staleSince('2026-07-24T12:00:00.000Z'),
+  ])
+
+  render(<App />)
+
+  // The whole sentence, with only the day count left to the clock the shell
+  // reads: the words are what tells someone the screen may lag the remote.
+  expect((await screen.findByRole('status')).textContent).toMatch(
+    /^Foto local desactualizada: el clon se trajo hace \d+ días\. Lo que ves puede ir por detrás del remoto\.$/,
+  )
+  expect(screen.getByText(/^Foto local traída hace \d+ días$/)).toBeTruthy()
+  expect(screen.queryByText(/Foto local al día/)).toBeNull()
+  // Out of scope of this slice: the banner explains, it does not act.
+  expect(screen.queryByRole('button', { name: 'Traer cambios' })).toBeNull()
+})
+
+test('a clone that never fetched shows neither a fetch date nor the banner', async () => {
+  // `meta` still carries a fetch date on purpose: a header reading it instead
+  // of the clone would draw the line this test says is not there.
+  stubApi({ lastCommitAt: '2026-08-13T09:00:00.000Z', fetchedAt: '2026-08-18T09:00:00.000Z', stale: false }, {}, [
+    CloneMother.neverFetched(),
+  ])
+
+  render(<App />)
+
+  // The path of the selected clone is the clone list landed, so the two
+  // absences below are absences and not a screen that never got its data.
+  expect(await screen.findByText('/git/alpha')).toBeTruthy()
+  expect(screen.queryByText(/traída/)).toBeNull()
+  expect(screen.queryByText(/Foto local desactualizada/)).toBeNull()
+})
+
+test('a fresh clone shows its fetch date and no banner', async () => {
+  // `meta` says the snapshot is stale on purpose: the clone says it is not, and
+  // the clone is the one that decides.
+  stubApi({ lastCommitAt: '2026-08-13T09:00:00.000Z', fetchedAt: null, stale: true })
+
+  render(<App />)
+
+  expect((await screen.findByText(/Foto local al día/)).textContent).toMatch(
+    /^Foto local al día · traída (hoy|hace 1 día|hace \d+ días)$/,
+  )
+  expect(screen.queryByText(/Foto local desactualizada/)).toBeNull()
+})
+
+test('a repo with no commits says so in the header instead of a last commit', async () => {
+  // The empty history is `headSha: null`; `meta` still carries a last commit
+  // date, so a header deriving the line from it would fail the second assertion.
+  stubApi({ lastCommitAt: '2026-08-13T09:00:00.000Z', fetchedAt: null, stale: false }, { headSha: null })
+
+  render(<App />)
+
+  expect(await screen.findByText('sin historial · ningún commit todavía')).toBeTruthy()
+  expect(screen.queryByText(/último commit/)).toBeNull()
 })
 
 test('changing the window asks the API for that window', async () => {
   const { urls } = stubApi({ lastCommitAt: null, fetchedAt: null, stale: false })
 
   render(<App />)
-  await waitFor(() => {
-    expect(urls.at(-1)).toContain('window=12m')
-  })
+  // The blocks up and the analysing headline gone are the first summary
+  // landed, so the click below changes a window the shell has already asked
+  // the API for once.
+  expect(await screen.findByText('Pulso')).toBeTruthy()
+  expect(screen.queryByText('Analizando alpha-clone…')).toBeNull()
 
   fireEvent.click(screen.getByRole('button', { name: 'todo' }))
 
+  // The summary requests and only those: the heat block carries the window in
+  // its URL too, and it must not be what makes this pass.
   await waitFor(() => {
-    expect(urls.at(-1)).toContain('window=all')
+    expect(urls.filter((url) => url.includes('/summary?')).map(windowOf)).toEqual(['12m', 'all'])
   })
 })
 
@@ -336,4 +492,66 @@ test('the heat block hangs from the right column and reloads on a window change'
   })
   // Redrawn for the new window: the level the server anchors is back on screen.
   expect(await screen.findByText('web/')).toBeTruthy()
+})
+
+test('a window with zero commits shows the count and a cta to 12 meses', async () => {
+  const { urls } = stubApi({ lastCommitAt: '2026-08-13T09:00:00.000Z', fetchedAt: null, stale: false }, (window) =>
+    window === '30d'
+      ? { window: '30d', bucket: 'day', from: '2026-07-20T00:00:00.000Z', buckets: [], kpis: NO_COMMITS_KPIS }
+      : { buckets: [bucket('2026-07-01T00:00:00.000Z', 2), bucket('2026-08-01T00:00:00.000Z', 4)] },
+  )
+
+  render(<App />)
+  // The series on screen is the first window landed, so the click below trades
+  // a window that had commits for one that has none.
+  expect(await screen.findByTestId('pulse-current')).toBeTruthy()
+
+  fireEvent.click(screen.getByRole('button', { name: '30 días' }))
+
+  // The count and the window it belongs to, and the chart gone in its place.
+  expect(await screen.findByText('0 commits en 30 días')).toBeTruthy()
+  expect(screen.queryByTestId('pulse-current')).toBeNull()
+
+  fireEvent.click(screen.getByRole('button', { name: 'Ver 12 meses' }))
+
+  // The headline alone would not say the button leads anywhere: what does is
+  // that the request after the click is the one for the default window.
+  await waitFor(() => {
+    expect(urls.filter((url) => url.includes('/summary?')).map(windowOf)).toEqual(['12m', '30d', '12m'])
+  })
+})
+
+test('on the default window the empty window shows no cta', async () => {
+  stubApi({ lastCommitAt: '2026-08-13T09:00:00.000Z', fetchedAt: null, stale: false }, { kpis: NO_COMMITS_KPIS })
+
+  render(<App />)
+
+  // `12m` is the window the call to action points at, so standing on it there
+  // is nowhere left to go. The headline and the sentence are the empty window
+  // drawn, which is what makes the third assertion an absence.
+  expect(await screen.findByText('0 commits en 12 meses')).toBeTruthy()
+  expect(
+    screen.getByText(
+      /^Es una respuesta, no un fallo: el repo está quieto en esta ventana\. Su último commit fue (hoy|hace 1 día|hace \d+ días)\.$/,
+    ),
+  ).toBeTruthy()
+  expect(screen.queryByRole('button', { name: /^Ver / })).toBeNull()
+})
+
+test('a window with commits still draws the series', async () => {
+  stubApi(
+    { lastCommitAt: '2026-08-13T09:00:00.000Z', fetchedAt: null, stale: false },
+    {
+      buckets: [bucket('2026-07-01T00:00:00.000Z', 2), bucket('2026-08-01T00:00:00.000Z', 4)],
+      kpis: { commits: 6, activeAuthors: 2, filesTouched: 3 },
+    },
+  )
+
+  render(<App />)
+
+  // The commit count the payload carries is what decides: with commits in the
+  // window the chart and its bucket count stay, and no headline replaces them.
+  expect((await screen.findByTestId('pulse-current')).getAttribute('points')).toBe('0.0,102.5 600.0,6.0')
+  expect(screen.getByText('2 cubos')).toBeTruthy()
+  expect(screen.queryByText(/^0 commits en /)).toBeNull()
 })

@@ -1,6 +1,8 @@
-import type { Clone, SummaryMeta, TimeWindow } from './api/types'
+import type { CSSProperties, ReactElement } from 'react'
+import type { Clone, TimeWindow } from './api/types'
 import { WINDOWS } from './api/types'
-import { formatDay, relativeDays, windowLabel } from './format'
+import { formatDay, freshSnapshotLine, NO_HISTORY_META, relativeDays, staleSnapshotLine, windowLabel } from './format'
+import type { HeaderHistory, SnapshotNotice } from './screen'
 
 export interface HeaderProps {
   repos: readonly Clone[]
@@ -8,22 +10,20 @@ export interface HeaderProps {
   onRepo: (id: string) => void
   window: TimeWindow
   onWindow: (window: TimeWindow) => void
-  /** `null` while the summary of the selected clone has not arrived yet. */
-  meta: SummaryMeta | null
+  history: HeaderHistory
+  snapshot: SnapshotNotice
   now: Date
 }
 
 /**
- * The header of the mockup: which repo is being read, in which window, and how
- * fresh the local snapshot is. Every string it draws comes from
- * `web/src/format.ts`; both dated lines disappear whole when the API sends no
- * date, because a repo with no commits has neither.
+ * The header of the mockup: which repo is being read, in which window, what its
+ * history says and how fresh the local snapshot is. Every string it draws comes
+ * from `web/src/format.ts`, and the two lines under the repo name are dispatched
+ * over the vocabularies of `web/src/screen.ts` instead of derived from a pair of
+ * payload fields.
  */
-export default function Header({ repos, repoId, onRepo, window, onWindow, meta, now }: HeaderProps) {
+export default function Header({ repos, repoId, onRepo, window, onWindow, history, snapshot, now }: HeaderProps) {
   const selected = repos.find((repo) => repo.id === repoId) ?? null
-  const lastCommitAt = meta?.lastCommitAt ?? null
-  const fetchedAt = meta?.fetchedAt ?? null
-  const stale = meta?.stale === true
 
   return (
     <header style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
@@ -64,12 +64,7 @@ export default function Header({ repos, repoId, onRepo, window, onWindow, meta, 
           {selected !== null && (
             <div style={{ fontSize: '16px', color: 'var(--color-neutral-600)' }}>{selected.path}</div>
           )}
-          {lastCommitAt !== null && (
-            <div style={{ fontSize: '16px', color: 'var(--color-neutral-800)' }}>
-              último commit <strong style={{ fontWeight: 600 }}>{relativeDays(lastCommitAt, now)}</strong> ·{' '}
-              {formatDay(lastCommitAt)}
-            </div>
-          )}
+          {historyLine(history, now)}
         </div>
         <div style={{ display: 'flex', gap: '20px', fontSize: '18px', whiteSpace: 'nowrap' }}>
           {WINDOWS.map((candidate) => (
@@ -94,18 +89,52 @@ export default function Header({ repos, repoId, onRepo, window, onWindow, meta, 
           ))}
         </div>
       </div>
-      {fetchedAt !== null && (
-        <div
-          style={{
-            fontSize: '16px',
-            color: stale ? 'var(--color-accent-2-700)' : 'var(--color-neutral-600)',
-          }}
-        >
-          {stale
-            ? `Foto local traída ${relativeDays(fetchedAt, now)}`
-            : `Foto local al día · traída ${relativeDays(fetchedAt, now)}`}
-        </div>
-      )}
+      {snapshotLine(snapshot, now)}
     </header>
   )
+}
+
+const HISTORY_LINE_STYLE: CSSProperties = { fontSize: '16px', color: 'var(--color-neutral-800)' }
+
+/**
+ * What the header says about the history of the selected clone, dispatched with
+ * no default branch: `unknown` is a header without the line at all.
+ */
+function historyLine(history: HeaderHistory, now: Date): ReactElement | null {
+  switch (history.kind) {
+    case 'unknown':
+      return null
+    case 'none':
+      return <div style={HISTORY_LINE_STYLE}>{NO_HISTORY_META}</div>
+    case 'last-commit':
+      return (
+        <div style={HISTORY_LINE_STYLE}>
+          último commit <strong style={{ fontWeight: 600 }}>{relativeDays(history.at, now)}</strong> ·{' '}
+          {formatDay(history.at)}
+        </div>
+      )
+  }
+}
+
+function snapshotLineStyle(color: string): CSSProperties {
+  return { fontSize: '16px', color }
+}
+
+/**
+ * The freshness of the local snapshot, dispatched with no default branch: a
+ * clone that was never fetched has no line, not an empty one.
+ */
+function snapshotLine(snapshot: SnapshotNotice, now: Date): ReactElement | null {
+  switch (snapshot.kind) {
+    case 'never-fetched':
+      return null
+    case 'fresh':
+      return (
+        <div style={snapshotLineStyle('var(--color-neutral-600)')}>{freshSnapshotLine(snapshot.fetchedAt, now)}</div>
+      )
+    case 'stale':
+      return (
+        <div style={snapshotLineStyle('var(--color-accent-2-700)')}>{staleSnapshotLine(snapshot.fetchedAt, now)}</div>
+      )
+  }
 }

@@ -1,24 +1,29 @@
 import { useEffect, useState } from 'react'
+import type { ReactElement } from 'react'
 import { ApiError, fetchRepos, fetchSummary } from './api/client'
 import { DEFAULT_WINDOW } from './api/types'
-import type { ApiErrorCode, Clone, Summary, TimeWindow } from './api/types'
+import type { ApiErrorCode, Clone, TimeWindow } from './api/types'
 import Header from './Header'
 import HeatBlock from './Heat'
 import People from './People'
 import Pulse from './Pulse'
+import { ScreenChoice } from './screen'
+import type { Screen, SummaryLoad } from './screen'
+import { Screens } from './Screens'
+import { StaleNotice } from './StaleNotice'
 import TrendPanel from './TrendPanel'
 
 /**
  * The shell: it owns the whole state of the dashboard (the clones, the
- * selected one, the window, its summary and the last error) and hands the
- * header what it draws. Both loads run through `web/src/api/client.ts`.
+ * selected one, the window and the single load of its summary) and asks
+ * `web/src/screen.ts` which screen that state is. Both loads run through
+ * `web/src/api/client.ts`.
  */
 export default function App() {
   const [repos, setRepos] = useState<readonly Clone[]>([])
   const [repoId, setRepoId] = useState('')
   const [window, setWindow] = useState<TimeWindow>(DEFAULT_WINDOW)
-  const [summary, setSummary] = useState<Summary | null>(null)
-  const [error, setError] = useState<ApiErrorCode | null>(null)
+  const [load, setLoad] = useState<SummaryLoad>({ status: 'loading' })
   // Read once: every relative phrase in a render is measured from the same
   // instant, and a re-render does not silently move the reference point.
   const [now] = useState(() => new Date())
@@ -39,7 +44,7 @@ export default function App() {
         if (first !== undefined) setRepoId(first.id)
       } catch (caught) {
         if (signal.aborted) return
-        setError(codeOf(caught))
+        setLoad({ status: 'failed', code: codeOf(caught) })
       }
     }
   }, [])
@@ -47,8 +52,7 @@ export default function App() {
   useEffect(() => {
     if (repoId === '') return
     const controller = new AbortController()
-    setSummary(null)
-    setError(null)
+    setLoad({ status: 'loading' })
     void loadSummary(controller.signal)
     return () => {
       controller.abort()
@@ -56,15 +60,17 @@ export default function App() {
 
     async function loadSummary(signal: AbortSignal): Promise<void> {
       try {
-        const loaded = await fetchSummary(repoId, window, signal)
+        const summary = await fetchSummary(repoId, window, signal)
         if (signal.aborted) return
-        setSummary(loaded)
+        setLoad({ status: 'loaded', summary })
       } catch (caught) {
         if (signal.aborted) return
-        setError(codeOf(caught))
+        setLoad({ status: 'failed', code: codeOf(caught) })
       }
     }
   }, [repoId, window])
+
+  const { screen, history, snapshot } = ScreenChoice.of({ repos, repoId, load })
 
   return (
     <main
@@ -82,39 +88,64 @@ export default function App() {
         onRepo={setRepoId}
         window={window}
         onWindow={setWindow}
-        meta={summary?.meta ?? null}
+        history={history}
+        snapshot={snapshot}
         now={now}
       />
-      {error !== null && <p role="alert">No se ha podido cargar la información ({error}).</p>}
-      {error === null && summary === null && <p>Cargando…</p>}
-      {summary !== null && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 440px', gap: 64, alignItems: 'start' }}>
-          <div style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: 48 }}>
-            <Pulse summary={summary} />
-            <People summary={summary} />
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 40 }}>
-            <TrendPanel window={window} trend={summary.trend} kpis={summary.kpis} />
-            <HeatBlock
-              key={`${repoId}|${window}`}
-              repoId={repoId}
-              repoName={repoNameOf(repos, repoId)}
-              window={window}
-            />
-          </div>
-        </div>
-      )}
+      {snapshot.kind === 'stale' && <StaleNotice.Banner fetchedAt={snapshot.fetchedAt} now={now} />}
+      {screenBody(screen, { repoId, window, onRepo: setRepoId, onWindow: setWindow, now })}
     </main>
   )
 }
 
+/** What the body needs from the shell and the screen does not carry. */
+interface Shell {
+  repoId: string
+  window: TimeWindow
+  onRepo: (id: string) => void
+  onWindow: (window: TimeWindow) => void
+  now: Date
+}
+
 /**
- * The name of the selected clone, which is what the heat breadcrumb calls the
- * root of the tree. Its id is the fallback: the two loads are independent, so
- * the block can be mounted before the clone list has landed.
+ * The body under the header, dispatched over the closed vocabulary with no
+ * default branch: the declared return type is what turns a new member of
+ * `Screen` into a compilation error instead of a blank page.
  */
-function repoNameOf(repos: readonly Clone[], repoId: string): string {
-  return repos.find((repo) => repo.id === repoId)?.name ?? repoId
+function screenBody(screen: Screen, shell: Shell): ReactElement {
+  switch (screen.kind) {
+    case 'analysing':
+      return <Screens.Analysing repoName={screen.repoName} />
+    case 'not-a-git-repo':
+      return <Screens.NotAGitRepo repoId={screen.repoId} clones={screen.clones} onRepo={shell.onRepo} />
+    case 'no-commits':
+      return <Screens.NoCommits repoName={screen.repoName} />
+    case 'failed':
+      return <Screens.Failed code={screen.code} />
+    case 'blocks':
+      return (
+        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 440px', gap: 64, alignItems: 'start' }}>
+          <div style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: 48 }}>
+            <Pulse
+              summary={screen.summary}
+              activity={screen.activity}
+              onWindow={shell.onWindow}
+              now={shell.now}
+            />
+            <People summary={screen.summary} />
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 40 }}>
+            <TrendPanel window={shell.window} trend={screen.summary.trend} kpis={screen.summary.kpis} />
+            <HeatBlock
+              key={`${shell.repoId}|${shell.window}`}
+              repoId={shell.repoId}
+              repoName={screen.repoName}
+              window={shell.window}
+            />
+          </div>
+        </div>
+      )
+  }
 }
 
 /** Anything that is not an `ApiError` never reached the envelope: `internal`. */

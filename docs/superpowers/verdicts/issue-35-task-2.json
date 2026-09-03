@@ -1,0 +1,57 @@
+{
+  "issue": 35,
+  "task": 2,
+  "task_name": "`screen.ts`: la frescura de la foto y la línea de historial",
+  "verdict": {
+    "ruling": "PASS",
+    "rubric": [
+      {
+        "rule": "objetivo",
+        "result": "El objetivo promete tres cosas: (a) que la misma decision responda tambien el historial de cabecera, (b) que responda el estado de la foto local, (c) que ambas salgan de vocabularios cerrados en lugar de los pares de campos del payload. Las tres estan en el diff: `ScreenChoice.of` devuelve ahora `Dashboard` con `history` y `snapshot` ademas de `screen` (screen.ts:43-50); `historyOn`/`historyIn` (screen.ts:90-106) traducen `meta.lastCommitAt` a `HeaderHistory`; `snapshotOf` (screen.ts:108-116) traduce el par `fetchedAt`/`stale` del clon a `SnapshotNotice`. Ninguna de las dos respuestas queda como par de campos ni como opcional.",
+        "outcome": "conforme"
+      },
+      {
+        "rule": "asercion-tdd",
+        "result": "El test literal `the snapshot notice repeats the staleness the payload declares, it does not recompute it` existe (screen.test.ts:209) y su cuerpo es exactamente la asercion escrita en el plan: un clon con `fetchedAt` de anteayer (`THE_DAY_BEFORE_YESTERDAY = '2026-09-01T09:00:00Z'`, hoy es 2026-09-03) y `stale: true` da `{kind:'stale', fetchedAt: THE_DAY_BEFORE_YESTERDAY}`, y uno con `fetchedAt` de hace un año (`A_YEAR_AGO = '2025-09-02T09:00:00Z'`) y `stale: false` da `{kind:'fresh', fetchedAt: A_YEAR_AGO}`. Los dos casos estan invertidos respecto a un umbral de siete dias recalculado, asi que una implementacion que recalculase fallaria en ambos, que es justo lo que la frase del plan fija.",
+        "outcome": "conforme"
+      },
+      {
+        "rule": "contrato",
+        "result": "Comparado simbolo a simbolo con el bloque `Contract (web/src/screen.ts)`: `SnapshotNotice` con los tres miembros y los mismos nombres de campo (`fetchedAt`), `HeaderHistory` con `unknown`/`none`/`last-commit` y el campo `at`, `Dashboard` con `screen`/`history`/`snapshot` en ese orden, y `static of(selection: Selection): Dashboard`. La prosa del contrato tambien se cumple: `fetchedAt === null` o clon ausente -> `never-fetched`; `stale === true` -> `stale`; resto -> `fresh` (screen.ts:108-116); `none` en la pantalla `no-commits`, `last-commit` cuando el resumen ha llegado y `meta.lastCommitAt` no es null, `unknown` en el resto (screen.ts:90-106). El unico consumidor posible, `App.tsx`, todavia no importa `ScreenChoice` (grep en web/src: solo screen.ts y screen.test.ts lo mencionan), asi que el cambio de tipo de retorno no deja ningun call site en el camino viejo.",
+        "outcome": "conforme"
+      },
+      {
+        "rule": "decisiones-cerradas",
+        "result": "Filas que este diff toca: 'De donde sale la frescura de la foto' -> del `Clone` de `selection.repos`, nunca de `summary.meta` (`snapshotOf` usa `selectedClone`, y aunque `SummaryMeta` tambien trae `fetchedAt`/`stale` el diff no los lee); 'Quien decide si la foto esta caducada' -> se copia `clone.stale`, sin umbral de siete dias en ninguna linea; 'modulo puro: sin React, sin fetch, sin lectura de reloj' -> no hay `Date`, `now` ni import nuevo; 'vocabulario cerrado y despacho exhaustivo sin rama por defecto' -> el `switch` de `historyOn` enumera los cinco miembros de `Screen` sin `default`; 'Quien decide el nombre del repo seleccionado' -> sigue en `ScreenChoice`, ahora con `selectedClone` compartido. Las demas filas (format.ts, TSX, App.tsx, referencia visual) no tienen sujeto en este diff. Ninguna fila se reabre.",
+        "outcome": "conforme"
+      },
+      {
+        "rule": "patrones",
+        "result": "Vara del repo (AGENTS.md): TypeScript estricto y ESM, codigo entero en ingles (identificadores, nombres de test y constantes de las mothers), sin texto visible aqui, imports sin sufijo `.js` como manda la regla de `web/`, y la frontera `web/` no importa de `server/` (solo `./api/types`). Sin nombres ni emails de autores. Exemplars: `heat-rows.ts` y `format.ts` son la deuda declarada del repo (funciones libres a nivel de modulo y docblocks); `screen.ts` es el modulo nacido en la tarea 1 conforme a ct, y lo anadido sigue ese anfitrion, que es lo correcto porque la regla escrita gana al exemplar. `conventions/style.md`: cero prosa en las lineas nuevas, ingles, y todo colgando de `ScreenChoice`/de las clases mother; ninguna funcion suelta. `conventions/architecture.md`: aplica a modulos nuevos y aqui ambos ficheros son `(modify)`; aun asi el modulo sigue puro y sin dependencia de infraestructura, y no hay frontera nueva que cruzar. `conventions/decisions.md`: la busqueda del clon seleccionado queda en un solo sitio (`selectedClone`, reusado por `repoNameOf` y `snapshotOf`) en vez de duplicada, y el umbral de frescura no se reescribe en la interfaz. `conventions/testing.md`: las mothers dan escenarios con nombre (`neverFetched`, `declaredStaleFetchedTheDayBeforeYesterday`, `declaredFreshFetchedAYearAgo`), sus constantes se citan desde el test en vez de duplicarse, los helpers cuelgan de su tipo y la asercion es sobre el valor devuelto; leidas por el criterio de 'podria fallar por la razon que da su nombre', las cuatro podrian (romper `snapshotOf` o `historyOn` las tumba). Sin choque entre un control de la tarea y estos documentos: el control cuenta tests en un solo fichero pero no congela el total de la suite, asi que deja sitio a la fase roja. `conventions/defects.md`, regla a regla: (1) vocabulario cerrado — cumple y es el nucleo del diff: dos uniones discriminadas nuevas, la ausencia como miembro (`never-fetched`, `unknown`) y no como opcional, y despacho exhaustivo sin rama catch-all (screen.ts:91-100); (2) mapa crudo como retorno de logica — sin sujeto: lo que se devuelve es `Dashboard`, una interfaz declarada, y no hay lectura por clave; (3) dos campos que tienen que estar de acuerdo — cumple: `fetchedAt` viaja dentro de los miembros que lo tienen (`fresh`/`stale`) y no existe en `never-fetched`, asi que no hay centinela ni cadena vacia por 'sin fecha'; el par `fetchedAt`/`stale` que queda es el del payload del servidor, declarado fuera de alcance y fijado por decision cerrada, y el diff precisamente lo colapsa en un vocabulario; la coexistencia de `screen` e `history` en `Dashboard` la prescribe literalmente el bloque `Contract` del brief; (4) errores nombrados por lo que pasa — sin sujeto: el diff no introduce ningun error (el unico `throw` del fichero, en `ScreenProbe`, es linea de contexto sin tocar).",
+        "outcome": "conforme"
+      },
+      {
+        "rule": "manipulacion-tests",
+        "result": "Los `-` de `web/src/screen.test.ts` son de tres clases, ninguna una asercion debilitada: (a) anadir `.screen` a cada `ScreenChoice.of(...)`, obligado por el cambio de tipo de retorno que pide el bloque `Contract`, con la asercion `toEqual` sobre la pantalla completa intacta en los siete tests previos; (b) extraer `listedAs` como base privada de `CloneMother` — `freshlyFetched` sigue devolviendo `fetchedAt: '2026-08-19T11:00:00Z'` y `stale: false`, asi que `SelectionMother.REPOS` no cambia de valor; (c) `loadingAnUnlistedRepo` delegando en el nuevo `loadingWith([])`, mismo valor. El unico cambio de datos con efecto es el `meta.lastCommitAt` que `withCommitsIn` anade, que el test existente sigue comparando contra la misma variable `summary` y que lo pide el test de historial del brief. Ningun caso ni asercion preexistente desaparece o se relaja.",
+        "outcome": "conforme"
+      },
+      {
+        "rule": "fixture-theater",
+        "result": "La conducta prometida vive en produccion, no en el andamio: `snapshotOf` (screen.ts:108-116) y `historyOn`/`historyIn` (screen.ts:90-106), invocadas desde `of` (screen.ts:43-50). Revertidas esas lineas, `Dashboard` no existiria y los cuatro tests nuevos caerian; no hay mock, stub ni valor esperado calculado por el propio test. Las mothers solo construyen `Clone` y `Summary` reales del contrato de `web/src/api/types.ts`.",
+        "outcome": "conforme"
+      },
+      {
+        "rule": "alcance",
+        "result": "Todo lo escrito dentro de los dos ficheros sirve a una frase de la tarea: los dos tipos y el `Dashboard` los dicta el `Contract`; los cuatro tests los enumera `Tests:`; el `.screen` en los siete tests viejos es consecuencia obligada del nuevo retorno; `selectedClone` es la extraccion minima que evita escribir dos veces la busqueda del clon (y la exige `conventions/decisions.md`); `loadingWith` y las tres mothers nuevas son el arrange de los tests declarados. Nada de `Out of scope` aparece: sin boton 'Traer cambios', sin progreso por pasos, sin 'Elegir otra carpeta...', nada del servidor ni del umbral de frescura, ningun chip de demo, y ningun fichero de UI o de castellano tocado por adelantado.",
+        "outcome": "conforme"
+      },
+      {
+        "rule": "test-desiderata",
+        "result": "Cuatro tests nuevos (screen.test.ts:198, 209, 231, 238). Deterministas: todas las fechas son literales fijos de las mothers y la produccion no lee reloj, asi que el paso del tiempo no puede cambiar el resultado (los nombres 'anteayer'/'hace un año' son semantica, no una fecha calculada). Aislados: las mothers son estaticas y puras, `SelectionMother.REPOS` es `readonly` y nadie lo muta, no hay fichero, puerto ni directorio, y ninguno depende del orden del fichero. Verifican conducta real: la asercion es sobre lo que devuelve `ScreenChoice.of` y caeria si se revirtiesen `snapshotOf` o `historyOn`. No he reportado nada de la mitad fina —los nombres son sentencias de conducta y los dos casos por test que traen dos de ellos son los que el propio `TDD:`/`Tests:` del plan describe—, asi que no ha hecho falta cargar la skill de TDD para citarla.",
+        "outcome": "conforme"
+      }
+    ],
+    "findings": [],
+    "review_token": "c588d1a866d8048dcb1b2411b82c980c72d7d84242b718abcddf9119423ee75e"
+  }
+}

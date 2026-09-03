@@ -1,0 +1,57 @@
+{
+  "issue": 35,
+  "task": 4,
+  "task_name": "`Screens.tsx`: las cuatro pantallas que sustituyen a los bloques",
+  "verdict": {
+    "ruling": "PASS",
+    "rubric": [
+      {
+        "rule": "objetivo",
+        "result": "El objetivo promete dos cosas. (1) \"las cuatro pantallas de la maqueta que se dibujan en lugar de la rejilla existen como componentes\": web/src/Screens.tsx declara Screens.Analysing (titular analysingHeadline + barra indeterminada sin lista de pasos), Screens.NotAGitRepo, Screens.NoCommits (titular, frase y pie) y Screens.Failed (p role=alert), las cuatro como metodos estaticos que devuelven ReactElement. (2) \"la de carpeta-no-repositorio ofrece la lista de clones como salida\": clones.map dibuja un <button type=\"button\"> por clon con nombre y ruta cuyo onClick llama onRepo(clone.id). Las dos partes estan en el diff. Nada del diff hace mas de lo que el objetivo nombra.",
+        "outcome": "conforme"
+      },
+      {
+        "rule": "asercion-tdd",
+        "result": "La linea TDD pide rojo con test('picking a clone from the not-a-git-repo list selects it') y fija la asercion: pulsar el boton del segundo clon llama a onRepo con el id de ese clon y no con su name. El test del diff (Screens.test.tsx:83-98 del paquete) renderiza Screens.NotAGitRepo con los dos clones de CloneMother.DETECTED_BESIDE_THE_FOLDER, hace fireEvent.click(ScreensProbe.cloneButton(1)) -que es el segundo boton- y espera picked toEqual ['e4f5a6b']. Ese valor es el id del segundo clon y es distinto de su name ('repo-pulse'), asi que la asercion cae exactamente si el componente pasara el nombre: es la confusion que la frase del plan nombra. Entrada, asercion y valor esperado coinciden con lo escrito.",
+        "outcome": "conforme"
+      },
+      {
+        "rule": "contrato",
+        "result": "Comparado simbolo a simbolo con el bloque Contract (web/src/Screens.tsx): AnalysingProps { repoName: string } igual; NotAGitRepoProps { repoId: string; clones: readonly Clone[]; onRepo: (id: string) => void } igual en nombres, orden y tipos; NoCommitsProps { repoName: string } igual; FailedProps { code: ApiErrorCode } igual; class Screens exportada con los cuatro metodos estaticos Analysing/NotAGitRepo/NoCommits/Failed, todos con retorno declarado ReactElement. Los textos salen de format.ts con los nombres exactos que la prosa exige (NOT_A_GIT_REPO_HEADLINE, notAGitRepoSentence, DETECTED_CLONES_LABEL, NO_COMMITS_HEADLINE, noCommitsSentence, NO_COMMITS_FOOTNOTE, analysingHeadline), verificados contra web/src/format.ts. Failed conserva role=\"alert\" y reproduce literalmente el texto que App.tsx:88 pinta hoy ('No se ha podido cargar la informacion (<code>).'), que es lo que esa misma prosa manda. CHOQUE INTERNO DEL PLAN, DECLARADO Y NO CONTADO COMO HALLAZGO: la prosa del contrato dice \"La animacion entra como una regla @keyframes en web/src/tokens.css\", pero **Files:** de la tarea solo autoriza Screens.tsx y Screens.test.tsx (create), y la comprobacion mecanica de rutas ya corrio contra esa lista. He verificado que @keyframes rp-sweep no existe en ningun sitio de web/ (solo en el <head> de docs/design/repo-pulse-mockup.html), asi que hoy la barra de Screens.Analysing referencia una animacion sin definir y no se mueve. El diff no podia arreglarlo sin tocar una ruta que su Files prohibe: el defecto es del plan (la suposicion 10 lo asigna a tokens.css y ninguna tarea del plan lo lleva en su Files). Queda para el gate visual y para quien reparta la tarea 5.",
+        "outcome": "conforme"
+      },
+      {
+        "rule": "decisiones-cerradas",
+        "result": "Filas que tocan este diff: \"Como se exponen los componentes de un modulo .tsx NUEVO -> metodos estaticos de una clase con el nombre del concepto\": cumplida, class Screens con cuatro static y ninguna funcion a nivel de modulo. \"Donde vive el castellano nuevo -> web/src/format.ts\": cumplida, todo el castellano nuevo de las tres primeras pantallas se importa de format.ts; la frase de Failed no es castellano nuevo (ya existe en App.tsx hoy y la propia prosa de la tarea manda mantenerla). \"Referencia visual -> maqueta, estados loading/norepo/nocommits\": cumplida, verificado contra docs/design/repo-pulse-mockup.html (barra al 33% con animation rp-sweep 1.4s ease-in-out infinite, rotulo 'clones detectados', sin lista de pasos). Las demas filas (screen.ts, SummaryLoad, ScreenChoice, frescura/stale, DEFAULT_WINDOW, modulos .tsx que ya estaban) no las toca este diff. Ninguna decision reabierta.",
+        "outcome": "conforme"
+      },
+      {
+        "rule": "patrones",
+        "result": "Ejemplares: comparado con web/src/screen.ts (modulo nuevo del mismo slice: clase con estaticos, sin prosa, constantes con nombre) y con web/src/screen.test.ts (probe + mother por fichero de test); Screens.tsx y Screens.test.tsx siguen ese idioma. web/src/Heat.tsx confirma el idioma de estilos inline y de la fila-boton. Reglas del repo (AGENTS.md): codigo en ingles (identificadores y nombres de test, todos ingleses), texto visible en castellano (si), ESM sin sufijo .js en web/ (si), tests junto al codigo *.test.tsx (si), TypeScript estricto (build verde), \"Security & data handling\" - ni nombres ni emails de autores en el DOM (el DOM solo lleva nombre y ruta de clon), y frontera web/ <-> server/ (Screens.tsx importa solo de ./format y ./api/types; nada de server/). ct/style.md: modulo nuevo, nace conforme - cero comentarios, identificadores en ingles, toda funcion cuelga de un tipo (screenStyle es private static). ct/architecture.md: modulo nuevo de presentacion, sin puertos ni casos de uso; importa hacia abajo (tipos de frontera y formato) y de nadie mas; el agrupar cuatro pantallas en un modulo es decision cerrada del plan, no la reabro. ct/testing.md: madre con escenarios nombrados (CloneMother.detectedAs / DETECTED_BESIDE_THE_FOLDER), helpers colgados de ScreensProbe, aserciones sobre el DOM observable, sin dobles. Nota sin hallazgo: existe otra CloneMother en web/src/screen.test.ts, pero con escenarios distintos y para otro modulo, y testing.md acota el compartir a \"several test types of the same module\" y desaconseja el modulo compartido con un solo consumidor. ct/decisions.md: la frase de fallo queda duplicada entre App.tsx:88 y Screens.tsx durante exactamente un commit porque la prosa de esta tarea lo ordena (\"Failed mantiene ... el texto que App.tsx ya pinta hoy\") y su Files prohibe tocar App.tsx y format.ts; la tarea 5 la deja en un solo sitio. Lo declaro, no lo cuento. ct/defects.md, regla a regla: (1) vocabulario cerrado - el unico valor que clasifica es code: ApiErrorCode, vocabulario cerrado ya declarado en api/types.ts; no hay cadena suelta ni booleano derivado ni despacho con rama por defecto en este diff. (2) mapa crudo como retorno de logica - no hay; lo unico que se devuelve es CSSProperties, que es el contrato tipado de la prop style de React, no un mapa que otro modulo lea por clave para decidir. (3) dos campos que tienen que estar de acuerdo / centinela - no hay; las props son de un solo campo por dato y las ausencias del Clone (lastCommitAt, fetchedAt) viajan como null en el tipo, sin cadena vacia ni cero haciendo de ausencia. (4) error nombrado por donde ocurre - no se declara ningun tipo de error; el unico throw es el del probe de test ('no clone button at position N'), nombrado por lo que pasa.",
+        "outcome": "conforme"
+      },
+      {
+        "rule": "manipulacion-tests",
+        "result": "No aplica: el diff son dos ficheros nuevos (new file mode 100644 los dos) y no tiene ni una linea '-'. Ninguna asercion, caso o test preexistente se elimina, relaja ni reescribe; el log de controles muestra las otras siete suites con el mismo recuento de siempre (80 tests, 5 nuevos).",
+        "outcome": "no-aplica"
+      },
+      {
+        "rule": "fixture-theater",
+        "result": "El efecto prometido lo produce codigo de produccion: los cinco tests renderizan los componentes reales de web/src/Screens.tsx y afirman sobre el DOM que esos componentes generan (getByText del titular, getByRole('progressbar'), las etiquetas de los botones, getByRole('alert').textContent). No hay mock, stub ni doble en el fichero de test, y el valor de la asercion del test TDD ('e4f5a6b') solo puede aparecer si el onClick de produccion pasa clone.id. Con Screens.tsx revertido los cinco tests no compilan ni pasan.",
+        "outcome": "conforme"
+      },
+      {
+        "rule": "alcance",
+        "result": "Dentro de los dos ficheros no hay nada que la tarea no pida: las cuatro pantallas, sus cuatro interfaces de props y las constantes de estilo con nombre que la maqueta exige. Lo que \"Out of scope\" nombra por su nombre no esta: ni boton 'Traer cambios', ni 'Elegir otra carpeta...', ni progreso por pasos (el test lo fija en negativo con A_MOCKUP_LOADING_STEP = 'Historial recorrido', que he verificado que es el paso de la maqueta), ni chips de estado de demo. No se toca el servidor, ni el umbral de frescura, ni los codigos de error. Ningun refactor, renombrado ni helper adyacente.",
+        "outcome": "conforme"
+      },
+      {
+        "rule": "test-desiderata",
+        "result": "Cinco tests nuevos, medidos con las tres propiedades. Deterministas: no leen reloj ni fecha, no hay red ni ficheros, no hay aleatoriedad ni sleep; todas las entradas son literales del fichero. Aislados: cada test hace su propio render y el estado que observa es suyo (picked es local al test); web/src/testing/setup.ts registra afterEach(cleanup) explicitamente -el repo corre vitest con globals: false-, asi que el getAllByRole('button') del probe no ve el render del test anterior, y no hay estado mutable compartido, ni fichero, ni puerto, ni orden exigido. Verifican comportamiento real: las aserciones son sobre el DOM que produce Screens.tsx (cadenas exactas de format.ts, aria-valuenow ausente, las dos etiquetas de boton en orden, el textContent del role=alert) y el id devuelto por el onClick, no sobre andamiaje del test. Nada que reportar en las tres, asi que no bajo a la mitad fina y no he necesitado cargar la skill de TDD.",
+        "outcome": "conforme"
+      }
+    ],
+    "findings": [],
+    "review_token": "303003e14cd1fa95e6ad176a2150e26514af04b25821f68ab8969b12a3aca579"
+  }
+}

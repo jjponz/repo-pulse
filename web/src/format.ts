@@ -140,3 +140,52 @@ export function heatFooter(children: number, hereCommits: number, mainFolderComm
 export function fallbackNotice(mainFolder: string): string {
   return `La carpeta principal guardada ya no existe en HEAD: el calor se acota a ${mainFolderLabel(mainFolder)}.`
 }
+
+const EMPTY_WINDOW_SENTENCE = 'Es una respuesta, no un fallo: el repo está quieto en esta ventana.'
+
+export function emptyWindowSentence(lastCommitAt: string | null, now: Date): string {
+  if (lastCommitAt === null) return EMPTY_WINDOW_SENTENCE
+  return `${EMPTY_WINDOW_SENTENCE} Su último commit fue ${relativeDays(lastCommitAt, now)}.`
+}
+
+export function analysingHeadline(repoName: string): string {
+  return `Analizando ${repoName}…`
+}
+
+export function emptyWindowHeadline(window: TimeWindow): string {
+  return `0 commits en ${windowLabelLong(window)}`
+}
+
+export function emptyWindowCtaLabel(window: TimeWindow): string {
+  return `Ver ${windowLabelLong(window)}`
+}
+
+export const NOT_A_GIT_REPO_HEADLINE = 'Esa carpeta no es un repositorio git'
+
+export const DETECTED_CLONES_LABEL = 'clones detectados'
+
+export function notAGitRepoSentence(repoId: string): string {
+  return `En la carpeta ${repoId} no hay ningún directorio .git, así que no hay historial que medir.`
+}
+
+export const NO_COMMITS_HEADLINE = 'Repositorio sin commits'
+
+export const NO_COMMITS_FOOTNOTE = 'Cuando entre el primer commit, esta pantalla se llena sola.'
+
+export const NO_HISTORY_META = 'sin historial · ningún commit todavía'
+
+export function noCommitsSentence(repoName: string): string {
+  return `${repoName} es un repo git válido, pero su historial está vacío. No hay pulso que contar todavía.`
+}
+
+export function freshSnapshotLine(fetchedAt: string, now: Date): string {
+  return `Foto local al día · traída ${relativeDays(fetchedAt, now)}`
+}
+
+export function staleSnapshotLine(fetchedAt: string, now: Date): string {
+  return `Foto local traída ${relativeDays(fetchedAt, now)}`
+}
+
+export function staleBannerSentence(fetchedAt: string, now: Date): string {
+  return `Foto local desactualizada: el clon se trajo ${relativeDays(fetchedAt, now)}. Lo que ves puede ir por detrás del remoto.`
+}
