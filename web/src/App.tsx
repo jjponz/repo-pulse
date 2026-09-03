@@ -10,6 +10,7 @@ import Pulse from './Pulse'
 import { ScreenChoice } from './screen'
 import type { Screen, SummaryLoad } from './screen'
 import { Screens } from './Screens'
+import { StaleNotice } from './StaleNotice'
 import TrendPanel from './TrendPanel'
 
 /**
@@ -69,7 +70,7 @@ export default function App() {
     }
   }, [repoId, window])
 
-  const { screen } = ScreenChoice.of({ repos, repoId, load })
+  const { screen, history, snapshot } = ScreenChoice.of({ repos, repoId, load })
 
   return (
     <main
@@ -87,9 +88,11 @@ export default function App() {
         onRepo={setRepoId}
         window={window}
         onWindow={setWindow}
-        meta={load.status === 'loaded' ? load.summary.meta : null}
+        history={history}
+        snapshot={snapshot}
         now={now}
       />
+      {snapshot.kind === 'stale' && <StaleNotice.Banner fetchedAt={snapshot.fetchedAt} now={now} />}
       {screenBody(screen, { repoId, window, onRepo: setRepoId })}
     </main>
   )

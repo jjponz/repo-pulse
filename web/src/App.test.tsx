@@ -3,18 +3,35 @@ import { expect, test, vi } from 'vitest'
 import App from './App'
 import type { ApiErrorCode, Bucket, Clone, Heat, HeatEntry, Summary, SummaryMeta } from './api/types'
 
-const CLONES: Clone[] = [
-  {
-    // Id and name differ on purpose: the URLs are built from the id, and what
-    // the screen calls the repo is the name.
-    id: 'alpha',
-    name: 'alpha-clone',
-    path: '/git/alpha',
-    lastCommitAt: '2026-08-13T09:00:00.000Z',
-    fetchedAt: '2026-08-18T09:00:00.000Z',
-    stale: false,
-  },
-]
+/**
+ * The clones `GET /repos` answers with, one named scenario per freshness of the
+ * local snapshot: freshness is the clone's business and never `summary.meta`'s,
+ * so a test that cares about it says which clone it is about.
+ */
+class CloneMother {
+  /** Id and name differ on purpose: the URLs are built from the id, and what the screen calls the repo is the name. */
+  static fresh(): Clone {
+    return {
+      id: 'alpha',
+      name: 'alpha-clone',
+      path: '/git/alpha',
+      lastCommitAt: '2026-08-13T09:00:00.000Z',
+      fetchedAt: '2026-08-18T09:00:00.000Z',
+      stale: false,
+    }
+  }
+
+  /** Brought in long enough ago that the server declared it stale. */
+  static staleSince(fetchedAt: string): Clone {
+    return { ...CloneMother.fresh(), fetchedAt, stale: true }
+  }
+
+  static neverFetched(): Clone {
+    return { ...CloneMother.fresh(), fetchedAt: null, stale: false }
+  }
+}
+
+const CLONES: readonly Clone[] = [CloneMother.fresh()]
 
 /**
  * Overrides for the summary payload. `Record<string, unknown>` on top of
@@ -85,18 +102,20 @@ function heatUrls(urls: readonly string[]): string[] {
  * requested URL so a test can look at the last one. `vi.unstubAllGlobals()` in
  * the setup file undoes the stub after each test. `overrides` can also be a
  * function of the requested window, which is how a test gives two windows two
- * different payloads.
+ * different payloads. `clones` is what `GET /repos` answers, which is where the
+ * freshness of the local snapshot comes from.
  */
 function stubApi(
   meta: SummaryMeta,
   overrides: SummaryOverrides | ((window: string) => SummaryOverrides) = {},
+  clones: readonly Clone[] = CLONES,
 ): { urls: string[] } {
   const urls: string[] = []
   vi.stubGlobal('fetch', (url: string) => {
     urls.push(url)
     const body =
       url === '/api/repos'
-        ? { repos: CLONES }
+        ? { repos: clones }
         : url.includes('/heat?')
           ? heatFor(url)
           : summaryWith(meta, typeof overrides === 'function' ? overrides(windowOf(url)) : overrides)
@@ -186,7 +205,7 @@ test('the header shows the last commit and the fetch date', async () => {
 })
 
 test('without dates the header shows neither', async () => {
-  stubApi({ lastCommitAt: null, fetchedAt: null, stale: false })
+  stubApi({ lastCommitAt: null, fetchedAt: null, stale: false }, {}, [CloneMother.neverFetched()])
 
   render(<App />)
 
@@ -198,6 +217,66 @@ test('without dates the header shows neither', async () => {
   expect(screen.queryByText('Analizando alpha-clone…')).toBeNull()
   expect(screen.queryByText(/último commit/)).toBeNull()
   expect(screen.queryByText(/traída/)).toBeNull()
+})
+
+test('a clone fetched more than seven days ago shows the stale banner', async () => {
+  // `meta` says the snapshot is up to date on purpose: the verdict travels in
+  // the clone, so a header reading `meta.stale` would draw the fresh line here.
+  stubApi({ lastCommitAt: '2026-08-13T09:00:00.000Z', fetchedAt: '2026-08-18T09:00:00.000Z', stale: false }, {}, [
+    CloneMother.staleSince('2026-07-24T12:00:00.000Z'),
+  ])
+
+  render(<App />)
+
+  // The whole sentence, with only the day count left to the clock the shell
+  // reads: the words are what tells someone the screen may lag the remote.
+  expect((await screen.findByRole('status')).textContent).toMatch(
+    /^Foto local desactualizada: el clon se trajo hace \d+ días\. Lo que ves puede ir por detrás del remoto\.$/,
+  )
+  expect(screen.getByText(/^Foto local traída hace \d+ días$/)).toBeTruthy()
+  expect(screen.queryByText(/Foto local al día/)).toBeNull()
+  // Out of scope of this slice: the banner explains, it does not act.
+  expect(screen.queryByRole('button', { name: 'Traer cambios' })).toBeNull()
+})
+
+test('a clone that never fetched shows neither a fetch date nor the banner', async () => {
+  // `meta` still carries a fetch date on purpose: a header reading it instead
+  // of the clone would draw the line this test says is not there.
+  stubApi({ lastCommitAt: '2026-08-13T09:00:00.000Z', fetchedAt: '2026-08-18T09:00:00.000Z', stale: false }, {}, [
+    CloneMother.neverFetched(),
+  ])
+
+  render(<App />)
+
+  // The path of the selected clone is the clone list landed, so the two
+  // absences below are absences and not a screen that never got its data.
+  expect(await screen.findByText('/git/alpha')).toBeTruthy()
+  expect(screen.queryByText(/traída/)).toBeNull()
+  expect(screen.queryByText(/Foto local desactualizada/)).toBeNull()
+})
+
+test('a fresh clone shows its fetch date and no banner', async () => {
+  // `meta` says the snapshot is stale on purpose: the clone says it is not, and
+  // the clone is the one that decides.
+  stubApi({ lastCommitAt: '2026-08-13T09:00:00.000Z', fetchedAt: null, stale: true })
+
+  render(<App />)
+
+  expect((await screen.findByText(/Foto local al día/)).textContent).toMatch(
+    /^Foto local al día · traída (hoy|hace 1 día|hace \d+ días)$/,
+  )
+  expect(screen.queryByText(/Foto local desactualizada/)).toBeNull()
+})
+
+test('a repo with no commits says so in the header instead of a last commit', async () => {
+  // The empty history is `headSha: null`; `meta` still carries a last commit
+  // date, so a header deriving the line from it would fail the second assertion.
+  stubApi({ lastCommitAt: '2026-08-13T09:00:00.000Z', fetchedAt: null, stale: false }, { headSha: null })
+
+  render(<App />)
+
+  expect(await screen.findByText('sin historial · ningún commit todavía')).toBeTruthy()
+  expect(screen.queryByText(/último commit/)).toBeNull()
 })
 
 test('changing the window asks the API for that window', async () => {
