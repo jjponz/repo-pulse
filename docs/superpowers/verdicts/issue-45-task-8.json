@@ -1,0 +1,82 @@
+{
+  "issue": 45,
+  "task": 8,
+  "task_name": "the «Campeones» block in the dashboard",
+  "verdict": {
+    "ruling": "PASS",
+    "rubric": [
+      {
+        "rule": "objetivo",
+        "result": "The objective promises the ranking drawn beside Pulso/Gente/Calor with its three unhappy states visible. All four parts are in the diff. The ranking: Champions.tsx loads /api/coverage with fetchCoverage and draws one row per entry with name, source, age, bar and headline (web/src/Champions.tsx:303-374 of the package). Mounted beside the other blocks: App.tsx renders <Champions repos repoId now /> after the grid and outside the summary !== null guard, so a failed summary does not hide it. Unhappy state 1, a clone with no data: the row headline comes from coverageHeadline(entry.state, ...) via ChampionRows, which returns 'Sin datos de cobertura' for no-artifact. Unhappy state 2, no clone measured: ChampionRows.emptyHeadline() is rendered and no row is drawn. Unhappy state 3, API failure: <p role=\"alert\">No se ha podido cargar la cobertura ({error}).</p>, the same treatment Heat.tsx gives its failure. Only the tokens of web/src/tokens.css are used (--color-accent, --color-accent-200, --color-text, --color-neutral-200/300/600 all exist there).",
+        "outcome": "conforme"
+      },
+      {
+        "rule": "asercion-tdd",
+        "result": "The TDD line asks for test('the champions block lists every clone with its percentage') over a stubbed fetchCoverage asserting the distinctive percentage text of each row, plus a highlight pinned by its own pair. Both are in the diff and say what the plan wrote. The first stubs fetch with two measured clones (80 and 60) and asserts the two distinctive strings '80,0 %' and '60,0 %' — the es-ES text coveragePercentage produces, not a loose substring. The highlight test renders with repoId=\"b\" and asserts, in the same test, that the row of '60,0 %' carries aria-current 'true' and that the row of '80,0 %' has it null. A component that marked every row would fail on the second expectation, which is the failure mode the plan named; the assertion reads aria-current off the row element found by closest('[data-testid=\"champion-row\"]'), so the mark is read where the component sets it.",
+        "outcome": "conforme"
+      },
+      {
+        "rule": "contrato",
+        "result": "The Contract block declares ChampionsProps { repos: readonly Clone[]; repoId: string; now: Date } and a default-exported Champions. The diff declares exactly that interface, with the same three names and types, and exports Champions as default. The Call site block asked for <Champions repos={repos} repoId={repoId} now={now} /> after the grid and outside the summary guard: App.tsx:108 is that line, and now is the once-read instant App.tsx:25 already owned, so no new clock read appears. fetchCoverage(signal) matches the signature already in web/src/api/client.ts:23. The one textual difference: the contract writes the return type as JSX.Element and the diff leaves it inferred, the same way the exemplar the plan names (web/src/Heat.tsx:21) and web/src/App.tsx:17 do. Type identity is unchanged and no symbol, name or order differs, so I do not count it as a deviation.",
+        "outcome": "conforme"
+      },
+      {
+        "rule": "decisiones-cerradas",
+        "result": "Rows this diff bears on: 'Route GET /api/coverage, body { coverage: [...] }' — honoured through fetchCoverage, and the App test stub answers /api/coverage with { coverage }. 'Order of the ranking' — the order is the server's and the component does not re-sort: rows come from ChampionRows.of, which maps in the received order. 'Spanish is only for UI copy' — every identifier, test name and prop in the diff is English; the Spanish strings are 'Campeones', '¿quién cubre más?' and the alert sentence, all product copy a person reads. Rows about formats, candidate order, metric, cache key and server module placement are server-side and this diff touches nothing that bears on them. No row is implemented with a different value.",
+        "outcome": "conforme"
+      },
+      {
+        "rule": "patrones",
+        "result": "Exemplars: Champions.tsx follows web/src/Heat.tsx closely — a section with the same heading pair, its own useEffect with an AbortController, an ApiErrorCode state, the same role=\"alert\" sentence shape, and rows derived by a separate module (heat-rows there, champion-rows here) instead of decided in JSX. Payload types come from web/src/api/types.ts and nothing is imported from server/ (AGENTS.md invariant kept); web/ imports carry no .js suffix, as that repo rule requires; tests sit beside the code. conventions/defects.md, rule by rule: closed vocabulary — CoverageState and ApiErrorCode are the typed unions of api/types.ts and the exhaustive dispatch over the state lives in format.ts:154 with no catch-all; the diff adds no boolean or loose string standing for a state. Raw map as the return value of logic — none: the component returns JSX and the rows it renders are the declared ChampionRow type. Two fields that have to agree — the load is held as two nullable useState hooks (coverage and error), which leaves the pair 'both set' representable; I considered this and do not count it as a finding, because it is local component state rather than an answer handed to a consumer, and it is the exact idiom of the exemplar the plan names for this role (Heat.tsx:23-24) and of App.tsx. Error named for where it happens — the diff declares no error type. conventions/style.md: no comments or docstrings in Champions.tsx; the one added comment is in App.test.tsx, a module that was already there and full of prose, so the declared debt covers it. The function-component shape is what plan assumption 10 accepts as the framework's entry point, so it is not a finding. Two low findings reported: loose test helpers in a new test module, and the mothers duplicated across two test files. One more low finding: the component still decides the empty case itself.",
+        "outcome": "conforme"
+      },
+      {
+        "rule": "manipulacion-tests",
+        "result": "The only pre-existing test file touched is web/src/App.test.tsx, and its - lines are three: the type import line, which gains RepoCoverage, and the two lines of the nested ternary inside stubApi, reflowed to add a /api/coverage branch. None of them removes, relaxes or rewrites an assertion, a case or a test: no expect and no test() is deleted, and every existing assertion of the file is untouched. The new branch is what the task's own text asks for — the block loads /api/coverage itself — so the shell tests keep the endpoints the shell now calls.",
+        "outcome": "conforme"
+      },
+      {
+        "rule": "fixture-theater",
+        "result": "The promised behaviour is produced by production code. '80,0 %' is not written anywhere in Champions.tsx or in the test as an expected constant chain: the mother supplies percentage 80, the component asks ChampionRows.of, which calls coverageHeadline -> coveragePercentage in web/src/format.ts, and the es-ES formatter yields the string the test looks for. 'Sin datos de cobertura' likewise comes from format.ts:159 through the state of the payload, not from the test. The highlight comes from row.selected computed in champion-rows.ts and rendered as aria-current by the component. Revert web/src/Champions.tsx and every test of Champions.test.tsx fails for want of the component, and the App test loses both 'Campeones' and '80,0 %'. The fetch stub doubles only the boundary the block reads.",
+        "outcome": "conforme"
+      },
+      {
+        "rule": "alcance",
+        "result": "Inside the four declared files I find nothing the task did not ask for. Champions.tsx is only the block: no sorting, no thresholds, no traffic-light colours, no per-folder or per-file coverage, no history — the items ### Out of scope names by name are all absent, and nothing in the diff runs a coverage tool or reaches an external service. App.tsx gains one import and one JSX line, exactly the Call site block. App.test.tsx gains the COVERAGE constant, the /api/coverage stub branch and the mount test the Tests line lists; the stub branch is needed for the existing tests to keep working now that the shell mounts a block that fetches. No refactor, rename or adjacent fix rides along.",
+        "outcome": "conforme"
+      },
+      {
+        "rule": "test-desiderata",
+        "result": "The five new tests of web/src/Champions.test.tsx and the one of App.test.tsx hold all three blocking properties. Deterministic: no real clock or today's date reaches an assertion — NOW is the fixed new Date('2026-08-19T00:00:00.000Z') and measuredAt is a fixed ISO string, so the age text is fixed; no network (fetch is stubbed), no path, no randomness, no sleep. Isolated: state is per test — vi.stubGlobal is undone by vi.unstubAllGlobals() and components unmounted by cleanup() in web/src/testing/setup.ts, which vite.config.ts registers as the setup file; no shared mutable module state, no file, port or directory, and no test depends on the order of the file. Verifies real behaviour: every assertion is on rendered output of the production component, not on a mock's call count or a stub's return value, and reverting Champions.tsx turns all of them red. On the finer half: the skill control-tower-loop:test-driven-development did not load ('Unknown skill'), so per the item I report only the three blocking properties here; the two test-hygiene remarks I do have are pinned to sentences of conventions/testing.md and conventions/style.md carried by the brief, and are reported under patrones. One thing I looked at and did not count: 'a ranking with no measured clone says so instead of drawing an empty block' asserts against ChampionRows.emptyHeadline() rather than the literal sentence, so it would survive a change of that text — but the brief prescribes exactly that call, the literal is pinned in web/src/champion-rows.test.ts:58, and the test's second assertion (no champion-row rendered) is on real behaviour.",
+        "outcome": "conforme"
+      }
+    ],
+    "findings": [
+      {
+        "rule": "patrones",
+        "severity": "low",
+        "what": "web/src/Champions.test.tsx is a new module and its two fetch helpers hang off nothing: stubCoverage and stubCoverageFailure are declared at module level, beside the mothers that do show the conforming shape (CoverageMother, CloneMother are classes). A new module is born conforming, so the host-style exemption of the older test files does not reach it. The fix is small: they belong on a test type, like the mothers next to them.",
+        "path": "web/src/Champions.test.tsx",
+        "line": 196,
+        "evidence": "conventions/testing.md: \"Test helpers hang off their test type, like any other function.\" and conventions/style.md: \"No free function at module level: every function hangs off a type\". The diff writes: `function stubCoverage(coverage: readonly RepoCoverage[]): void {`"
+      },
+      {
+        "rule": "patrones",
+        "severity": "low",
+        "what": "CoverageMother and CloneMother are now declared twice with the same names and different defaults: web/src/champion-rows.test.ts already has both, and web/src/Champions.test.tsx repeats them with a different lines value (there `{ covered: 1, total: 1 }`, here `{ covered: percentage, total: 100 }`). App.test.tsx builds the same object a third time by hand as COVERAGE. Two copies of the same mother for the same payload will drift, and neither file will say why the numbers differ.",
+        "path": "web/src/Champions.test.tsx",
+        "line": 171,
+        "evidence": "conventions/testing.md antipattern: \"A test helper at module level, or repeated in two files.\" and \"An object built by hand in the test when a mother exists, or the mother's constants duplicated in the test.\" The diff writes: `class CoverageMother {` `static measured(id: string, percentage: number): RepoCoverage {`"
+      },
+      {
+        "rule": "patrones",
+        "severity": "low",
+        "what": "The plan put every non-JSX decision of this block in ChampionRows, and one decision stayed in the component: whether the ranking has anything to draw. Champions.tsx partitions the CoverageState vocabulary by hand and then branches on the length, while champion-rows.ts holds the answer to that same question (emptyHeadline) but not the question itself. Behaviour is right and this blocks nothing; the shape asked for is a ChampionRows member that answers it, so the component only chooses which of the three fragments to render.",
+        "path": "web/src/Champions.tsx",
+        "line": 303,
+        "evidence": "The brief's assumption 10: \"every decision it would otherwise take inline lives in the `ChampionRows` class of `web/src/champion-rows.ts`\". The diff writes: `const measured = coverage === null ? [] : coverage.filter((entry) => entry.state === 'measured')`, then `error === null && coverage !== null && measured.length === 0`. Cf. conventions/decisions.md: \"Something that holds the data and not the question, with every consumer formulating it by hand.\""
+      }
+    ],
+    "review_token": "df644b263494f9032dddf938990b0447e9fbeab57c1067e272515f5543758ad0"
+  }
+}

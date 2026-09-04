@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { expect, test, vi } from 'vitest'
 import App from './App'
-import type { Bucket, Clone, Heat, HeatEntry, Summary, SummaryMeta } from './api/types'
+import type { Bucket, Clone, Heat, HeatEntry, RepoCoverage, Summary, SummaryMeta } from './api/types'
 
 const CLONES: Clone[] = [
   {
@@ -80,6 +80,18 @@ function heatUrls(urls: readonly string[]): string[] {
   return urls.filter((url) => url.includes('/heat?'))
 }
 
+/** The one clone's coverage the champions block draws by default. */
+const COVERAGE: RepoCoverage[] = [
+  {
+    id: 'alpha',
+    state: 'measured',
+    percentage: 80,
+    lines: { covered: 80, total: 100 },
+    source: 'istanbul',
+    measuredAt: '2026-08-18T00:00:00.000Z',
+  },
+]
+
 /**
  * Doubles `fetch` with the two endpoints the shell calls, and records every
  * requested URL so a test can look at the last one. `vi.unstubAllGlobals()` in
@@ -97,9 +109,11 @@ function stubApi(
     const body =
       url === '/api/repos'
         ? { repos: CLONES }
-        : url.includes('/heat?')
-          ? heatFor(url)
-          : summaryWith(meta, typeof overrides === 'function' ? overrides(windowOf(url)) : overrides)
+        : url === '/api/coverage'
+          ? { coverage: COVERAGE }
+          : url.includes('/heat?')
+            ? heatFor(url)
+            : summaryWith(meta, typeof overrides === 'function' ? overrides(windowOf(url)) : overrides)
     return Promise.resolve({ ok: true, json: () => Promise.resolve(body) } as unknown as Response)
   })
   return { urls }
@@ -336,4 +350,13 @@ test('the heat block hangs from the right column and reloads on a window change'
   })
   // Redrawn for the new window: the level the server anchors is back on screen.
   expect(await screen.findByText('web/')).toBeTruthy()
+})
+
+test('the dashboard mounts the champions block', async () => {
+  stubApi({ lastCommitAt: null, fetchedAt: null, stale: false })
+
+  render(<App />)
+
+  expect(await screen.findByText('Campeones')).toBeTruthy()
+  expect(await screen.findByText('80,0 %')).toBeTruthy()
 })

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { ApiError, fetchRepos, fetchSummary } from './api/client'
 import { DEFAULT_WINDOW } from './api/types'
 import type { ApiErrorCode, Clone, Summary, TimeWindow } from './api/types'
+import Champions from './Champions'
 import Header from './Header'
 import HeatBlock from './Heat'
 import People from './People'
@@ -104,6 +105,7 @@ export default function App() {
           </div>
         </div>
       )}
+      <Champions repos={repos} repoId={repoId} now={now} />
     </main>
   )
 }
