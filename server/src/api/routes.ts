@@ -1,15 +1,16 @@
 import { Router } from 'express'
 import { DEFAULT_WINDOW, WINDOWS, isTimeWindow } from '../analysis/index.js'
 import { freshnessOf } from '../repos.js'
+import { CoveragePayload } from './coverage-payload.js'
 import { ApiError } from './errors.js'
 import type { Analysis, Heat, TimeWindow } from '../analysis/index.js'
 import type { AppDeps } from '../app.js'
 import type { Catalog } from '../repos.js'
 
 /**
- * The four endpoints of the API, mounted under '/api'. Everything they read
- * comes from the analysis barrel through `deps.analysis`; nothing here runs git
- * or writes into a clone.
+ * The endpoints of the API, mounted under '/api'. Everything but `/coverage`
+ * reads from the analysis barrel through `deps.analysis`; nothing here runs
+ * git or writes into a clone.
  *
  * Walking the history of a big clone is the expensive part, so each answer is
  * cached under the HEAD sha it was computed from. HEAD itself is read on EVERY
@@ -32,6 +33,10 @@ export function createRouter(deps: AppDeps): Router {
 
   router.get('/repos', async (_request, response) => {
     response.json({ repos: await deps.catalog.list() })
+  })
+
+  router.get('/coverage', async (_request, response) => {
+    response.json(CoveragePayload.of(await deps.coverage.run()))
   })
 
   router.get('/repos/:id/summary', async (request, response) => {

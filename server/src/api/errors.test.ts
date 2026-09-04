@@ -2,6 +2,8 @@ import request from 'supertest'
 import { expect, test } from 'vitest'
 import { AnalysisError } from '../analysis/index.js'
 import { createApp } from '../app.js'
+import { CoverageOrder } from '../coverage/coverage-order.js'
+import { CoverageRanking } from '../coverage/coverage-ranking.js'
 import type { AppDeps } from '../app.js'
 
 /**
@@ -24,6 +26,11 @@ function appOver(fail: () => never) {
     catalog: { list: () => Promise.resolve([]), resolve: () => Promise.resolve(REPO) },
     settings: { mainFolderOf: () => undefined, setMainFolder: () => Promise.resolve() },
     analysis: { readHeadSha: fail, readLastCommitAt: fail, walkHistory: fail, heatTree: fail },
+    coverage: new CoverageRanking({
+      catalog: { list: () => Promise.resolve([]), resolve: () => Promise.resolve(REPO) },
+      artifacts: { readingOf: () => Promise.reject(new Error('not used')) },
+      order: new CoverageOrder(),
+    }),
     now: () => new Date(),
   }
   return createApp(deps)
