@@ -113,6 +113,8 @@ a module that already existed and never conformed.
 | `server/src/api/routes.ts` | modify | the app | Current state |
 | `server/src/app.ts` | modify | entrypoint | Current state |
 | `server/src/api/routes.test.ts` | modify | — | none (body by TDD) |
+| `server/src/app.test.ts` | modify | — | none (body by TDD) |
+| `server/src/api/errors.test.ts` | modify | — | none (body by TDD) |
 | `web/src/api/types.ts` | modify | client, block | Contract |
 | `web/src/api/client.ts` | modify | block | Current state |
 | `web/src/api/client.test.ts` | modify | — | none (body by TDD) |
@@ -419,7 +421,12 @@ npm run build -w server   # expected: exit 0
 envelope as the four endpoints already there.
 
 **Files:** `server/src/api/coverage-payload.ts` (create), `server/src/api/routes.ts` (modify),
-`server/src/app.ts` (modify), `server/src/api/routes.test.ts` (modify).
+`server/src/app.ts` (modify), `server/src/api/routes.test.ts` (modify),
+`server/src/app.test.ts` (modify), `server/src/api/errors.test.ts` (modify).
+
+The last two are the price of the new required field: both build an `AppDeps` literal of their
+own, so both stop typechecking until each one names `coverage`. They get that one field and
+nothing else.
 
 The conversion to the wire lives in the boundary model, both ways, never in the use case: the
 three states become the `null` fields the issue's payload declares, and `state` travels beside
