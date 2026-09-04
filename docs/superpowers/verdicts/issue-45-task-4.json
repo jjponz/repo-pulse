@@ -1,0 +1,57 @@
+{
+  "issue": 45,
+  "task": 4,
+  "task_name": "the adapter that finds the artefact on disk and caches its parse",
+  "verdict": {
+    "ruling": "PASS",
+    "rubric": [
+      {
+        "rule": "objetivo",
+        "result": "The objective promises four things and each one is in the diff. Reading one clone from artefacts on disk: `readingOf` walks `COVERAGE_CANDIDATES` and `readingOfCandidate` stats then reads the file. Closed candidate order: the array is in the declared order and the loop returns the first `state === 'measured'`, so a candidate that yields no lines (`CoverageReadings.of` answers `noArtifact()` when `lines.total === 0`) is skipped and the walk continues. Dated with the artefact's mtime: `parse` receives `stats.mtime` and hands it to `CoverageReadings.of` as `measuredAt`. Parsed once per mtime: the cache key is `[repoPath, candidate.path, String(stats.mtimeMs)].join('\\u0000')`. `UnreadableArtifact` travels out untouched — `parse` has no catch, only `statOrNull` does, and it wraps `stat` alone. `CoverageReadings.noArtifact()` is the answer when nothing is measured. The previous round's defect (a raw NUL byte in that join literal, which made the file binary to git) is gone: line 50 of the file on disk carries the `'\\u0000'` escape, the same spelling `keyOf` uses in `server/src/api/routes.ts`, and the file reads as text.",
+        "outcome": "conforme"
+      },
+      {
+        "rule": "asercion-tdd",
+        "result": "The **TDD:** line names `test('the coverage summary of a clone wins over its lcov file')` with a tmp directory written with `node:fs` carrying both artefacts at different percentages and the assertion on source and percentage. The test writes `coverage/coverage-summary.json` at 90/100 and `coverage/lcov.info` at 10/100 into a `mkdtempSync` directory and asserts `reading.source` is `'istanbul'` and `reading.lines.percentage()` is `90` — the same assertion, the same input, the same expected value. Its two named companions match as well: `test('a second read of an unchanged artifact does not parse it again')` pins the cache with `vi.spyOn(IstanbulArtifact, 'linesFrom')` and expects one call, and `test('an artifact whose mtime moved is parsed again')` moves the mtime with `utimesSync` and expects two.",
+        "outcome": "conforme"
+      },
+      {
+        "rule": "contrato",
+        "result": "Name by name against the `Contract (server/src/coverage/artifact-files.ts)` block. `COVERAGE_CANDIDATES` is exported with the declared type `readonly { path: string; source: CoverageFormat }[]` and the five entries in the declared order with the declared `source` values. `export class ArtifactFiles implements CoverageArtifacts` matches; the constructor takes exactly `cache: Cache<CoverageReading>` (declared `private readonly`, which the block does not speak against) and no default, so the bound is chosen elsewhere as the task text requires; `readingOf(repoPath: string): Promise<CoverageReading>` matches in name, parameter name and return shape. `CoverageArtifacts` in `server/src/coverage/coverage-artifacts.ts` declares that same signature, so the `implements` holds. No error is declared or raised here.",
+        "outcome": "conforme"
+      },
+      {
+        "rule": "decisiones-cerradas",
+        "result": "Row by row, only the rows this diff bears on. Formats — exactly the three of `CoverageFormat`, and `READERS` is a `Record<CoverageFormat, ArtifactReader>` with no fourth member. Candidate order — the five paths in the table's order, first that yields lines wins. Metric — delegated to `LineCount.percentage()`, not recomputed here. An artefact with no line counters — `CoverageReadings.of` answers `noArtifact()` for `total === 0` and the loop moves to the next candidate. No candidate counts — `CoverageReadings.noArtifact()`. Artefact that is not its format — the reader's `UnreadableArtifact` is not caught, leaving the decision to the use case as the row says. Measure date — `stats.mtime`. Cache key — clone path, candidate path and mtime. New server code under `server/src/coverage/`. Identifiers and test names in English. The import of `Cache` from `../api/routes.js` is the row 'the `Cache` of `server/src/api/routes.ts`' being obeyed, not a boundary the diff chose. Rows about the route, the ranking order and the UI have no subject in this diff.",
+        "outcome": "conforme"
+      },
+      {
+        "rule": "patrones",
+        "result": "Exemplars: `statOrNull` is the idiom of `server/src/repos.ts` lines 135-141 verbatim in behaviour (a `stat` that throws answers 'no'), which is what the task text asked for; the `Cache`/`createCache` seam and the `'\\u0000'` join are the idiom of `server/src/api/routes.ts`. AGENTS.md rules that bear on this diff all hold: relative imports carry `.js`, the test sits beside the code as `*.test.ts`, no author name or email appears, nothing mutates a clone and nothing fetches, `web/` is untouched. conventions/defects.md, rule by rule: (1) closed vocabulary — conforming, `CoverageFormat` and the `CoverageReading` discriminated union carry the classification, the absent state is the vocabulary member `no-artifact` rather than an optional, and the dispatch `READERS[source]` is a `Record<CoverageFormat, ...>` the type checker makes exhaustive with no catch-all; (2) raw map as the return value of logic — no subject, `readingOf` returns the declared `CoverageReading` union and `READERS` is a compile-time dispatch table, not a value logic returns; (3) two fields that have to agree — no subject, no flag repeats another field and no sentinel stands for an absence: the absence is `{ state: 'no-artifact' }`, and the `Stats | null` of `statOrNull` is a private helper's local answer, prescribed by the task and copied from the exemplar, not a value that classifies anything a consumer reads; (4) an error named for where it happens — no subject, this diff declares no error. style.md on a new module: no comment and no docstring anywhere, every identifier in English, no function at module level (the two module-level names are constants, one of them fixed by the contract). architecture.md: infrastructure adapter named after its implementation, its cache bound arriving through the constructor with no default, no policy decided here, no cast, one concept per module — `ArtifactReader` and `READERS` have no consumer and no meaning once `ArtifactFiles` is deleted, so they earn their place in this file. decisions.md: the candidate order and the key shape exist once, here; the `statOrNull` shape repeated from `repos.ts` is boundary idiom, not a business rule — no business change forces touching both. testing.md: helpers hang off the test types `CloneDirectory` and `ArtifactContent`, whose methods are named scenarios (`istanbul`, `istanbulWithNoLines`, `lcov`); the arrange is built with `node:fs` and not with the piece under test; the spies preserve the real implementation, so they count real calls instead of answering for them. No clash between a control of the plan and any of these documents.",
+        "outcome": "conforme"
+      },
+      {
+        "rule": "manipulacion-tests",
+        "result": "Does not apply: both files are new (`new file mode 100644`, `--- /dev/null`) and the diff carries 205 insertions and no deletion at all, so there is no pre-existing assertion, case or test that could have stopped asserting.",
+        "outcome": "no-aplica"
+      },
+      {
+        "rule": "fixture-theater",
+        "result": "The promised behaviour comes from production lines. The candidate order lives in `COVERAGE_CANDIDATES` in `artifact-files.ts`, the walk and the 'first measured wins' rule in `readingOf`, the mtime date in `parse`, and the once-per-mtime parse in the cache key of `readingOfCandidate`. The test side builds only real inputs: real files written with `writeFileSync` in a `mkdtempSync` directory, real mtimes moved with `utimesSync`, real `createCache` from `../api/routes.js`, and readings asserted through the real `LineCount.percentage()`. The only doubles are `vi.spyOn(IstanbulArtifact, 'linesFrom')` with no implementation replaced, so the counted calls are calls production code actually made — remove the cache from `readingOfCandidate` and both cache tests fail.",
+        "outcome": "conforme"
+      },
+      {
+        "rule": "alcance",
+        "result": "Nothing inside the two files goes beyond the task. `artifact-files.ts` carries only `COVERAGE_CANDIDATES`, the adapter and the two private helpers the objective needs; there is no refactor, no rename and no touch to `routes.ts`, `repos.ts`, the reader modules or `web/`. Everything `### Out of scope` names by name — running tests or coverage tools in a clone, CI or an external service, history or trend, per-folder or per-file coverage, thresholds and traffic-light colours, JaCoCo — is absent: nothing spawns a process, nothing fetches, and the only paths read are the five closed candidates.",
+        "outcome": "conforme"
+      },
+      {
+        "rule": "test-desiderata",
+        "result": "Seven new tests, measured on the three properties that block. Deterministic: no real clock and no today's date in any assertion — the two date assertions pin fixed instants set with `utimesSync` (`2024-03-01T12:00:00.000Z`, `2030-01-01T00:00:00.000Z`), no network, no randomness, no sleep, and every path lives under `mkdtempSync(join(tmpdir(), 'artifact-files-'))`. Isolated: each test creates its own temporary directory, `afterEach` removes it with `rmSync(..., { recursive: true, force: true })` and calls `vi.restoreAllMocks()`, so the one shared mutable name (`clone`) and the spy on `IstanbulArtifact` are both reset; no fixed file, port or directory is reused and no test needs another's order or leftovers. Verifies real behaviour: the assertions are on what the adapter answers — `source`, `percentage()`, `measuredAt.toISOString()`, `toEqual({ state: 'no-artifact' })` — and the two call-count assertions count calls into real production code, so none of the seven would survive reverting the production lines of this diff. Nothing outside those three is reported, so the finer half was not needed and the TDD skill was not loaded.",
+        "outcome": "conforme"
+      }
+    ],
+    "findings": [],
+    "review_token": "d5d0b0c70e82acb941b06dd3bf1aacf6a78f7783356eba5ee7005430f26e8ad3"
+  }
+}
