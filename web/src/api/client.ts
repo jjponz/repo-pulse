@@ -1,4 +1,4 @@
-import type { ApiErrorCode, Clone, Heat, Summary, TimeWindow } from './types'
+import type { ApiErrorCode, Clone, Heat, RepoCoverage, Summary, TimeWindow } from './types'
 
 /**
  * Thrown by every function below for a response that is not `ok`, or one that
@@ -18,6 +18,11 @@ export class ApiError extends Error {
 export async function fetchRepos(signal?: AbortSignal): Promise<Clone[]> {
   const body = await request<{ repos: Clone[] }>('/api/repos', { signal })
   return body.repos
+}
+
+export async function fetchCoverage(signal?: AbortSignal): Promise<RepoCoverage[]> {
+  const body = await request<{ coverage: RepoCoverage[] }>('/api/coverage', { signal })
+  return body.coverage
 }
 
 export async function fetchSummary(
