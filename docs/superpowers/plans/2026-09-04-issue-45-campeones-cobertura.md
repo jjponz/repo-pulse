@@ -63,7 +63,7 @@ non-blocking, and the format list this plan closes has three members.
 | No candidate counts | state `no-artifact`, every value `null` |
 | Artefact that is not its format | the reader raises `UnreadableArtifact`, the use case turns it into state `unreadable-artifact` |
 | A read that fails for any other reason | contained in the use case as `unreadable-artifact` too, and warned about; it never travels out of the clone it belongs to |
-| Order of the ranking | measured first by percentage descending, then every non-measured; ties broken by `id` ascending, compared by code unit |
+| Order of the ranking | `measured` first by percentage descending, then `no-artifact`, then `unreadable-artifact` — one rank per state, so the list tells the two states with no percentage apart; ties broken by `id` ascending, compared by code unit |
 | Measure date | mtime of the artefact that was read, ISO 8601 |
 | Cache key | clone path, candidate path and artefact mtime |
 | New server code | lives under `server/src/coverage/`, one concept per module |
@@ -238,27 +238,26 @@ test "$(grep -rl '//' server/src/coverage | wc -l)" -eq 0   # expected: exit 0 �
 ### Task 2 — the order of the ranking and the use case that answers it
 
 **Objective:** rank every clone of the root by line coverage, with the clones that have no
-percentage last and an unreadable artefact reported instead of sinking the ranking.
+percentage last and an unreadable artefact reported instead of sinking it.
 
 **Files:** `server/src/coverage/coverage-order.ts` (create),
 `server/src/coverage/coverage-ranking.ts` (create),
 `server/src/coverage/coverage-ranking.test.ts` (create).
 
 `CoverageOrder` is the exact rule and nothing else: it dispatches over `CoverageState` with no
-catch-all branch, ranks `measured` before `no-artifact` and `unreadable-artifact`, orders the
-measured by `percentage()` descending, and breaks every tie by `id` ascending compared by code
-unit — the same reason `byName` in `server/src/repos.ts` avoids `localeCompare`: the answer must
-not change between machines with a different `LANG`.
+catch-all branch and gives each state its OWN rank — `measured`, then `no-artifact`, then
+`unreadable-artifact`, so a broken artefact is not mixed in by name among the clones that simply
+have none. It orders the measured by `percentage()` descending and breaks ties by `id`
+ascending compared by code unit, like `byName` in `server/src/repos.ts` avoiding
+`localeCompare`: the answer must not change between machines with a different `LANG`.
 
 `CoverageRanking` asks the catalog for the clones and the port for each reading, in parallel like
-`Catalog.list` does, and turns a FAILED reading from the port into
-`CoverageReadings.unreadableArtifact()`. That mapping lives here, in the use case: it is the
-policy of what to do with one clone's failure, and an adapter does not decide policy.
-
-The policy covers EVERY failure, not only `UnreadableArtifact`: the readings travel on one
-`Promise.all`, and an error escaping this method would reject the whole ranking. Only the
-unforeseen ones are warned about, the way `createCatalog` in `server/src/repos.ts` warns about a
-clone whose git it cannot read; `UnreadableArtifact` is a reported state and needs no trace.
+`Catalog.list` does, and turns a FAILED reading into `CoverageReadings.unreadableArtifact()`.
+That mapping lives here: what to do with one clone's failure is policy, and an adapter
+does not decide it. It covers EVERY failure, not only `UnreadableArtifact`: the readings
+travel on one `Promise.all`, and an error escaping the method would reject the whole ranking.
+Only the unforeseen ones are warned about, like `createCatalog` in `server/src/repos.ts` does
+with a clone whose git it cannot read; `UnreadableArtifact` is a reported state, not a trace.
 
 Contract (server/src/coverage/coverage-order.ts):
 
@@ -293,15 +292,16 @@ opposite one, so a sort that ignored the percentage would fail).
 `test('two clones with the same percentage are ordered by name')`,
 `test('a clone with no artifact ranks after every measured clone')`,
 `test('an unreadable artifact ranks with the clones that have no data')`,
+`test('an unreadable artifact ranks after every clone with no artifact, not mixed in by name')`,
 `test('a clone whose artifact cannot be read is reported as unreadable instead of sinking the ranking')`,
 `test('a clone whose read fails for an unforeseen reason does not sink the reading of the others')`.
 
-**Verification:** the six assertions run green, and the module's own count is checked instead of
-the suite total.
+**Verification:** the seven assertions run green, and the module's own count is checked instead
+of the suite total.
 
 ```bash
 npm test -w server -- src/coverage/coverage-ranking.test.ts   # expected: exit 0
-test "$(grep -c "^test('" server/src/coverage/coverage-ranking.test.ts)" -eq 6   # expected: exit 0
+test "$(grep -c "^test('" server/src/coverage/coverage-ranking.test.ts)" -eq 7   # expected: exit 0
 npm run build -w server   # expected: exit 0
 ```
 
