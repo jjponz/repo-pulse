@@ -26,7 +26,11 @@ the clones by that coverage.
   `lcov.info` (lcov), `coverage/coverage.xml` and `coverage.xml` (cobertura), in that order.
 - The metric is the percentage of covered LINES, `covered / total` rounded to one decimal.
 - A clone with no artefact reads as `no-artifact`; one whose artefact cannot be parsed reads as
-  `unreadable-artifact`. Neither is ever reported as 0 %.
+  `unreadable-artifact`. Neither is ever reported as 0 %, in the payload or in the bar the block
+  draws: a clone with no percentage draws NO bar, so it cannot be confused with one measured at
+  0 %.
+- One clone whose reading fails never sinks the reading of the others: the ranking answers every
+  clone of the root, with the failed one as `unreadable-artifact`.
 - `GET /api/coverage` answers every clone of the root ordered by coverage descending, with the
   clones that have no percentage last, each entry carrying `id`, `state`, `percentage`, `lines`,
   `source` and `measuredAt` (the mtime of the artefact that was read).
@@ -58,6 +62,7 @@ non-blocking, and the format list this plan closes has three members.
 | An artefact with no line counters | does not count: the walk continues to the next candidate |
 | No candidate counts | state `no-artifact`, every value `null` |
 | Artefact that is not its format | the reader raises `UnreadableArtifact`, the use case turns it into state `unreadable-artifact` |
+| A read that fails for any other reason | contained in the use case as `unreadable-artifact` too, and warned about; it never travels out of the clone it belongs to |
 | Order of the ranking | measured first by percentage descending, then every non-measured; ties broken by `id` ascending, compared by code unit |
 | Measure date | mtime of the artefact that was read, ISO 8601 |
 | Cache key | clone path, candidate path and artefact mtime |
@@ -246,9 +251,17 @@ unit — the same reason `byName` in `server/src/repos.ts` avoids `localeCompare
 not change between machines with a different `LANG`.
 
 `CoverageRanking` asks the catalog for the clones and the port for each reading, in parallel like
-`Catalog.list` does, and turns an `UnreadableArtifact` from the port into
+`Catalog.list` does, and turns a FAILED reading from the port into
 `CoverageReadings.unreadableArtifact()`. That mapping lives here, in the use case: it is the
 policy of what to do with one clone's failure, and an adapter does not decide policy.
+
+The policy covers every failure, not only `UnreadableArtifact`: the readings travel on one
+`Promise.all`, so an error that escaped this method would reject the whole ranking and take the
+reading of every other clone down with it. What the readers' own `UnreadableArtifact` buys is the
+silence: it is a reported state of the vocabulary and needs no trace, while any other error is
+warned about the way `createCatalog` in `server/src/repos.ts` warns about a clone whose git it
+cannot read — without a trace, a bug in a reader would be indistinguishable from a malformed
+artefact.
 
 Contract (server/src/coverage/coverage-order.ts):
 
@@ -283,14 +296,15 @@ opposite one, so a sort that ignored the percentage would fail).
 `test('two clones with the same percentage are ordered by name')`,
 `test('a clone with no artifact ranks after every measured clone')`,
 `test('an unreadable artifact ranks with the clones that have no data')`,
-`test('a clone whose artifact cannot be read is reported as unreadable instead of sinking the ranking')`.
+`test('a clone whose artifact cannot be read is reported as unreadable instead of sinking the ranking')`,
+`test('a clone whose read fails for an unforeseen reason does not sink the reading of the others')`.
 
-**Verification:** the five assertions run green, and the module's own count is checked instead of
+**Verification:** the six assertions run green, and the module's own count is checked instead of
 the suite total.
 
 ```bash
 npm test -w server -- src/coverage/coverage-ranking.test.ts   # expected: exit 0
-test "$(grep -c "^test('" server/src/coverage/coverage-ranking.test.ts)" -eq 5   # expected: exit 0
+test "$(grep -c "^test('" server/src/coverage/coverage-ranking.test.ts)" -eq 6   # expected: exit 0
 npm run build -w server   # expected: exit 0
 ```
 
@@ -569,8 +583,10 @@ already exists — reused, not written again. `coverageAge` answers `sin fecha` 
 `measuredAt` is `null`.
 
 `web/src/champion-rows.ts` holds every decision the block would otherwise take inline: the row
-order comes from the server untouched, the bar width is the percentage in per cent (`0` when
-there is none), and `selected` is the row whose `id` is the clone chosen in the header.
+order comes from the server untouched, the bar width is the percentage in per cent and `null`
+when there is none — the absence goes in the type, because a `0` there is the measure of a clone
+covered at 0 % and the block would draw the two the same — and `selected` is the row whose `id`
+is the clone chosen in the header.
 
 Contract (web/src/champion-rows.ts):
 
@@ -581,7 +597,7 @@ export interface ChampionRow {
   headline: string
   age: string
   source: string
-  barPercent: number
+  barPercent: number | null
   selected: boolean
 }
 
@@ -607,6 +623,7 @@ coverage of `72.35` and one of `72.34`.
 `test('a measure with no date is shown as sin fecha')`. Added to
 `web/src/champion-rows.test.ts`: `test('the selected clone is marked in the ranking')`,
 `test('a clone with no percentage gets no bar')`,
+`test('a clone measured at zero per cent keeps its bar, unlike one with no data')`,
 `test('the order the server sent is kept untouched')`,
 `test('a ranking with no measured clone answers its own headline')`.
 
@@ -630,7 +647,8 @@ The block loads `/api/coverage` itself and owns its own error state, the way
 `web/src/Heat.tsx` does with its level: the coverage is root-wide, it does not depend on the
 selected window, and a summary that fails must not hide it. It draws name, percentage with bar,
 source format and age of the measure, using only the tokens of `web/src/tokens.css`, and it
-highlights the row of the clone selected in the header. Its three unhappy states are the row
+highlights the row of the clone selected in the header. A row whose `barPercent` is `null` draws
+no bar at all — not a bar at 0 % — and keeps the slot so the columns stay aligned. Its three unhappy states are the row
 sentence for a clone with no data, `ChampionRows.emptyHeadline()` when no clone has data, and the
 same `role="alert"` treatment the other blocks give an API failure.
 
@@ -674,7 +692,9 @@ assertion, so a component that marked every row would fail.
 `test('only the selected clone is highlighted in the ranking')`,
 `test('a clone with no artifact says sin datos de cobertura')`,
 `test('a ranking with no measured clone says so instead of drawing an empty block')`,
-`test('a failed coverage load shows an alert')`. Added to `web/src/App.test.tsx`:
+`test('a failed coverage load shows an alert')`,
+`test('a clone measured at zero per cent draws its bar and one with no data draws none')`. Added
+to `web/src/App.test.tsx`:
 `test('the dashboard mounts the champions block')`.
 
 **Verification:** the whole `web/` suite passes and the block is mounted from the shell.
