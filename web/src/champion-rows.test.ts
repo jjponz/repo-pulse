@@ -42,7 +42,16 @@ test('a clone with no percentage gets no bar', () => {
 
   const rows = ChampionRows.of(coverage, repos, 'a', now)
 
-  expect(rows.map((row) => row.barPercent)).toEqual([0])
+  expect(rows.map((row) => row.barPercent)).toEqual([null])
+})
+
+test('a clone measured at zero per cent keeps its bar, unlike one with no data', () => {
+  const coverage = [CoverageMother.measured('a', 0), CoverageMother.noArtifact('b')]
+  const repos = [CloneMother.of('a'), CloneMother.of('b')]
+
+  const rows = ChampionRows.of(coverage, repos, 'a', now)
+
+  expect(rows.map((row) => row.barPercent)).toEqual([0, null])
 })
 
 test('the order the server sent is kept untouched', () => {

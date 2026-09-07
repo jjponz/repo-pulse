@@ -80,14 +80,21 @@ export default function Champions({ repos, repoId, now }: ChampionsProps) {
               <span style={{ fontSize: '15px', color: 'var(--color-neutral-600)', width: '90px' }}>
                 {row.age}
               </span>
-              <div style={{ width: '80px', height: '8px', background: 'var(--color-neutral-200)' }}>
-                <div
-                  style={{
-                    width: `${row.barPercent}%`,
-                    height: '100%',
-                    background: 'var(--color-accent)',
-                  }}
-                />
+              <div style={{ width: '80px' }}>
+                {row.barPercent !== null && (
+                  <div
+                    data-testid="champion-bar"
+                    style={{ height: '8px', background: 'var(--color-neutral-200)' }}
+                  >
+                    <div
+                      style={{
+                        width: `${row.barPercent}%`,
+                        height: '100%',
+                        background: 'var(--color-accent)',
+                      }}
+                    />
+                  </div>
+                )}
               </div>
               <span
                 style={{

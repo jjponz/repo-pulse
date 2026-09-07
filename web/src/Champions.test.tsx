@@ -96,3 +96,14 @@ test('a failed coverage load shows an alert', async () => {
 
   expect(await screen.findByRole('alert')).toBeTruthy()
 })
+
+test('a clone measured at zero per cent draws its bar and one with no data draws none', async () => {
+  stubCoverage([CoverageMother.measured('a', 0), CoverageMother.noArtifact('b')])
+  const repos = [CloneMother.of('a'), CloneMother.of('b')]
+
+  render(<Champions repos={repos} repoId="a" now={NOW} />)
+  await screen.findByText('0,0 %')
+
+  expect(screen.queryAllByTestId('champion-row')).toHaveLength(2)
+  expect(screen.queryAllByTestId('champion-bar')).toHaveLength(1)
+})

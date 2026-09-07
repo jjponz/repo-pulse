@@ -7,7 +7,7 @@ export interface ChampionRow {
   headline: string
   age: string
   source: string
-  barPercent: number
+  barPercent: number | null
   selected: boolean
 }
 
@@ -38,7 +38,7 @@ export class ChampionRows {
       headline: coverageHeadline(entry.state, entry.percentage),
       age: coverageAge(entry.measuredAt, now),
       source: entry.source === null ? '' : entry.source,
-      barPercent: entry.percentage === null ? 0 : entry.percentage,
+      barPercent: entry.percentage,
       selected: entry.id === repoId,
     }
   }
