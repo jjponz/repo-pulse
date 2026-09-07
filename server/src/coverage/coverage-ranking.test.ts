@@ -127,6 +127,20 @@ test('a clone whose artifact cannot be read is reported as unreadable instead of
   expect(entries[0]?.reading.state).toBe('unreadable-artifact')
 })
 
+test('an unreadable artifact ranks after every clone with no artifact, not mixed in by name', async () => {
+  const alpha = CloneMother.at('alpha')
+  const zeta = CloneMother.at('zeta')
+  const omega = CloneMother.at('omega')
+  const artifacts = new CoverageArtifactsDouble()
+    .unreadable(alpha)
+    .noArtifact(zeta)
+    .measured(omega, 500, 1000)
+
+  const { entries } = await artifacts.rankingFor(new CatalogDouble([alpha, zeta, omega])).run()
+
+  expect(entries.map((entry) => entry.id)).toEqual(['omega', 'zeta', 'alpha'])
+})
+
 test('a clone whose read fails for an unforeseen reason does not sink the reading of the others', async () => {
   const gamma = CloneMother.at('gamma')
   const zeta = CloneMother.at('zeta')

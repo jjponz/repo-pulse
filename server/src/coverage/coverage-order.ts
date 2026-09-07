@@ -23,7 +23,7 @@ export class CoverageOrder {
       case 'no-artifact':
         return 1
       case 'unreadable-artifact':
-        return 1
+        return 2
     }
   }
 
