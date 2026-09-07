@@ -1,0 +1,66 @@
+{
+  "issue": 51,
+  "task": 2,
+  "task_name": "Create the coupling analysis module",
+  "verdict": {
+    "ruling": "PASS",
+    "rubric": [
+      {
+        "rule": "objetivo",
+        "result": "The objective promises a new module that computes, for one level, the pairs of children co-changing above the minimum, with count and percent. All three parts are in production code: server/src/analysis/coupling.ts declares AnalyzeCoupling.run, which resolves the level (resolveMainFolder/normalizePath, path defaulting to the main folder), filters commits to the window with buildGrid/bucketIndex, and calls pairsOf(touchedChildren(inWindow, path)) only when isWithin(mainFolder.mainFolder, path). pairsOf builds every unique pair of the level's children ordered a<b, computes coChanges as the intersection size of their commit-sha sets, drops anything under MIN_CO_OCCURRENCES and sets percent = round(coChanges / min(sizeA, sizeB) * 100). Nothing the objective names is missing.",
+        "outcome": "conforme"
+      },
+      {
+        "rule": "asercion-tdd",
+        "result": "The TDD line asks for it('a pair with exactly the minimum co-occurrences appears and one fewer does not'), with two files under the same folder, one sharing exactly 5 commits with a third file and 4 with a fourth, and run() returning the first pair and omitting the second. The test in coupling.test.ts:76 has that literal name and that input: src/a.ts+src/b.ts in five commits (2026-07-01..05) and src/a.ts+src/c.ts in four (2026-07-06..09), read at window '12m' with now fixed to 2026-08-13. It asserts pairs equals exactly [{a:'a.ts',aKind:'file',b:'b.ts',bKind:'file',coChanges:5,percent:100}] and then that no pair a.ts/c.ts exists. Same assertion, same input, same expected value as the written phrase.",
+        "outcome": "conforme"
+      },
+      {
+        "rule": "contrato",
+        "result": "Compared name by name against the Contract block. MIN_CO_OCCURRENCES = 5 exported; CouplingPair with a, aKind, b, bKind, coChanges, percent and the two kinds typed 'dir' | 'file'; CouplingScope with repo, window: TimeWindow, mainFolder?, path?, now?; Coupling with mainFolder, fallback, path, commits, minCoOccurrences, headSha: string | null, pairs: readonly CouplingPair[]; class AnalyzeCoupling with the two constructor parameters in the brief's order and exact types ((repo: string) => Promise<string[]> and (repo: string) => Promise<{ headSha: string | null; commits: Commit[] }>), and run(scope: CouplingScope): Promise<Coupling>. The declared steps also match: normalizePath(scope.path) ?? mainFolder.mainFolder for path, buildGrid/bucketIndex from './windows.js' for the window, commits = countTouching(inWindow, path). No symbol states anything the brief does not. The only symbol the contract does not name is the private helper type TouchedChild (coupling.ts:219) and the two private methods; they are internal and the contract is silent about them.",
+        "outcome": "conforme"
+      },
+      {
+        "rule": "decisiones-cerradas",
+        "result": "Row by row. Percent formula: implemented as Math.round((coChanges / Math.min(aEntry.commits.size, bEntry.commits.size)) * 100) — the row's value. Minimum co-changes: MIN_CO_OCCURRENCES = 5 exported and echoed in the payload as minCoOccurrences. Scope of a pair: immediate children of the same resolved path over the same window, via touchedChildren(inWindow, path) guarded by isWithin — never repo-wide, never another level. New endpoint: no bearing on this task (no route touched). Sort order: pairs.sort((x,y) => y.percent - x.percent || y.coChanges - x.coChanges || (x.a < y.a ? -1 : x.a > y.a ? 1 : 0)) — percent desc, then coChanges desc, then a ascending by UTF-16, exactly the row. Row cap in the UI: no bearing. Shape of the new server module: a class with both git readers injected through the constructor by name. Where the child/main-folder decisions live: all five Task 1 exports (touchedChildren, resolveMainFolder, normalizePath, isWithin, countTouching) are imported from './heat.js' and none is re-derived here. No row is reopened.",
+        "outcome": "conforme"
+      },
+      {
+        "rule": "patrones",
+        "result": "Exemplars: coupling.ts mirrors heatTree's own steps in the same order (resolve main folder, normalize path, buildGrid over commit dates, filter by bucketIndex, countTouching, guard by isWithin, spread ...mainFolder into the result), and coupling.test.ts mirrors heat.test.ts's shape exactly — the same fixed NOW constant, the same `let fixture` plus afterEach cleanup, the same real-git createRepoFixture arrange. ct's yardstick, document by document. style.md (binds every diff; the brief states the declared-debt exemption does NOT cover this new module): no comments and no docstrings anywhere in either new file, all identifiers and both test names in English, and no free function at module level — every function hangs off AnalyzeCoupling (run, pairsOf, intersectionSize); the module-level names are one exported const, three interfaces and one type. architecture.md (binds new modules, so it reaches this one): the two git-reading dependencies enter through the constructor by name; there is no suffix on the type, on its params or on its result; run takes one params object (CouplingScope) and returns one result object (Coupling), both declared beside it; one concept per module — CouplingPair, CouplingScope and Coupling have no meaning without Coupling and the plan closed that they share the file; the module imports only heat.js, windows.js and types.js, never git.js, so the use case depends on the two function ports and not on the adapters (the test is what injects the real git readers). decisions.md: the main-folder/child-of-path decision is not rewritten here — it arrives by import from heat.ts, which is the whole point of Task 1; the coupling formula and the minimum live once, in this file. AGENTS.md: '.js' suffix on every relative import, English identifiers, and no author name or email in the payload. testing.md, one deviation, reported as a low below: these tests launch real git subprocesses with no marker, where the document asks for one. It is the exemplar's own practice (heat.test.ts does the same and the repo has no marker facility), so it does not block. defects.md, its four rules answered one by one. (1) Closed vocabulary: aKind/bKind are 'dir' | 'file', matching HeatEntry.kind — no loose string, no boolean derived from it, and no dispatch over it at all here, so no catch-all branch. The one boolean in the payload, `fallback`, is not derived from a vocabulary and is not this diff's decision: the brief's Contract block declares it and it arrives by spreading resolveMainFolder's own result from the pre-existing heat.ts. (2) Raw map as the return value of logic: run returns the Coupling object, never a map; pairs is a readonly array of typed CouplingPair. The Map that pairsOf receives from touchedChildren is a keyed collection iterated in full ([...children.entries()]), not a record read by key lookup where a misspelled key and an absent one would be the same thing — and reusing that export instead of re-deriving it is what closed decision 7 and decisions.md require. (3) Two fields that have to agree: no sentinel stands in for an absence — headSha keeps `string | null`, and coChanges/percent are always real counts because a pair below the minimum is dropped rather than emitted with a zero. minCoOccurrences echoes the exported constant from a single source. (4) An error named for where it happens: this diff declares no error at all, so the rule has no subject here.",
+        "outcome": "conforme"
+      },
+      {
+        "rule": "manipulacion-tests",
+        "result": "Does not apply: the diff is 214 insertions and zero deletions over two files that are both new (new file mode 100644 for coupling.test.ts and coupling.ts). There is no '-' line anywhere, so no pre-existing assertion, case or test could have been removed, relaxed or rewritten.",
+        "outcome": "no-aplica"
+      },
+      {
+        "rule": "fixture-theater",
+        "result": "The promised behaviour is produced by production code. The threshold, the intersection, the percent and the sort all live in coupling.ts (pairsOf and intersectionSize); the test file contributes only arrange data and the assertions. Nothing is hard-coded in the test's scaffolding: the fixtures are real git repos built by the pre-existing createRepoFixture and read through the real readDirectories/readHistory adapters, so the expected values (coChanges 5, percent 100, an empty pairs array outside the window) come out of the module under test. There is no mock or stub in this diff at all.",
+        "outcome": "conforme"
+      },
+      {
+        "rule": "alcance",
+        "result": "The diff writes only the two files the task declares as (create), and inside them only what the task asks for. Everything in coupling.ts is either a contract symbol of the brief or a private helper that serves the objective (pairsOf, intersectionSize, the TouchedChild alias for touchedChildren's entry shape). The four tests are exactly the four the **Tests:** line lists, in that order, with no fifth. Nothing named in ### Out of scope is touched: no cross-repo coupling, no complexity hotspots, no time evolution, nothing of Pulso or Gente, and no navigation change — no route, no web/ file and no other server file is in the diff, so the endpoint and the UI stay with their own tasks. No refactor, rename or adjacent fix rides along.",
+        "outcome": "conforme"
+      },
+      {
+        "rule": "test-desiderata",
+        "result": "Four new tests, measured on the three properties. Deterministic: the reference instant is the fixed constant NOW = new Date('2026-08-13T12:00:00.000Z') and is injected into run(), and every fixture commit carries an absolute pinned date, so no real clock, no date-of-today and no drift enters an assertion; no network, no randomness, no sleep. Isolated: each test builds its own throwaway repo under the OS temp directory via mkdtempSync, the shared `fixture` variable is reset and removed in afterEach, and no test depends on the order of the file or on state another test left. Verifies real behaviour: every assertion is on the object run() returned — the exact pairs array, the pair's coChanges/percent, an empty pairs array for the out-of-window case — and each of the first three would turn red for the reason its name gives if the production line it names were broken (drop the threshold and the first fails on the a.ts/c.ts pair; divide by the total or by the larger set and the second reads 25 instead of 100; skip the bucketIndex filter and the third gets a pair back). The fourth is a leak guard over JSON.stringify(coupling), which is the shape that case needs and is the test the plan asked for; it is weaker than the other three, but it is not one of the three blocking properties and I did not load control-tower-loop:test-driven-development, so I report nothing beyond them here.",
+        "outcome": "conforme"
+      }
+    ],
+    "findings": [
+      {
+        "rule": "patrones",
+        "severity": "low",
+        "what": "The four new tests launch real git subprocesses — createRepoFixture shells out to git init/add/commit, and the injected readDirectories/readHistory run git ls-tree and git log — with no marker distinguishing them from fast tests, and they exercise the use case with its two ports real instead of doubled. conventions/testing.md asks for the marker, and its outside-in rule asks for the application layer with the ports doubled first. It does not block: heat.test.ts, the exemplar this plan names in §3, does exactly the same, the repo ships no marker facility to use, and running the real git is what keeps the assertion on the literal history rather than on a reimplemented model of it.",
+        "path": "server/src/analysis/coupling.test.ts",
+        "line": 77,
+        "evidence": "conventions/testing.md: \"A test that launches a real subprocess is marked as such, so a fast subset exists. The marker shortens the loop, not what is required.\""
+      }
+    ],
+    "review_token": "aa4935187c9bddda39af32dd1866dcb692fffed09405042f610259355919638d"
+  }
+}
