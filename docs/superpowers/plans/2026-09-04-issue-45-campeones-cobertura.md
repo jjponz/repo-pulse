@@ -255,13 +255,10 @@ not change between machines with a different `LANG`.
 `CoverageReadings.unreadableArtifact()`. That mapping lives here, in the use case: it is the
 policy of what to do with one clone's failure, and an adapter does not decide policy.
 
-The policy covers every failure, not only `UnreadableArtifact`: the readings travel on one
-`Promise.all`, so an error that escaped this method would reject the whole ranking and take the
-reading of every other clone down with it. What the readers' own `UnreadableArtifact` buys is the
-silence: it is a reported state of the vocabulary and needs no trace, while any other error is
-warned about the way `createCatalog` in `server/src/repos.ts` warns about a clone whose git it
-cannot read — without a trace, a bug in a reader would be indistinguishable from a malformed
-artefact.
+The policy covers EVERY failure, not only `UnreadableArtifact`: the readings travel on one
+`Promise.all`, and an error escaping this method would reject the whole ranking. Only the
+unforeseen ones are warned about, the way `createCatalog` in `server/src/repos.ts` warns about a
+clone whose git it cannot read; `UnreadableArtifact` is a reported state and needs no trace.
 
 Contract (server/src/coverage/coverage-order.ts):
 
