@@ -48,6 +48,13 @@ class CoverageArtifactsDouble implements CoverageArtifacts {
     return this
   }
 
+  broken(clone: Clone, message: string): this {
+    this.answers.set(clone.path, async () => {
+      throw new Error(message)
+    })
+    return this
+  }
+
   async readingOf(repoPath: string): Promise<CoverageReading> {
     const answer = this.answers.get(repoPath)
     if (!answer) throw new Error(`no answer configured for ${repoPath}`)
@@ -118,4 +125,17 @@ test('a clone whose artifact cannot be read is reported as unreadable instead of
 
   expect(entries).toHaveLength(1)
   expect(entries[0]?.reading.state).toBe('unreadable-artifact')
+})
+
+test('a clone whose read fails for an unforeseen reason does not sink the reading of the others', async () => {
+  const gamma = CloneMother.at('gamma')
+  const zeta = CloneMother.at('zeta')
+  const artifacts = new CoverageArtifactsDouble()
+    .broken(gamma, 'EACCES: permission denied')
+    .measured(zeta, 500, 1000)
+
+  const { entries } = await artifacts.rankingFor(new CatalogDouble([gamma, zeta])).run()
+
+  expect(entries.map((entry) => entry.id)).toEqual(['zeta', 'gamma'])
+  expect(entries.map((entry) => entry.reading.state)).toEqual(['measured', 'unreadable-artifact'])
 })

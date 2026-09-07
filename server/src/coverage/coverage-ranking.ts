@@ -25,10 +25,13 @@ export class CoverageRanking {
       const reading = await this.deps.artifacts.readingOf(clone.path)
       return { id: clone.id, reading }
     } catch (error) {
-      if (error instanceof UnreadableArtifact) {
-        return { id: clone.id, reading: CoverageReadings.unreadableArtifact() }
-      }
-      throw error
+      if (!(error instanceof UnreadableArtifact)) CoverageRanking.warnUnforeseen(clone, error)
+      return { id: clone.id, reading: CoverageReadings.unreadableArtifact() }
     }
+  }
+
+  private static warnUnforeseen(clone: Clone, error: unknown): void {
+    const reason = error instanceof Error ? error.message : String(error)
+    console.warn(`repo-pulse: cannot read the coverage of ${clone.path}: ${reason}`)
   }
 }
