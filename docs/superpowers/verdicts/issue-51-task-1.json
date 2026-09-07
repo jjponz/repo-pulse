@@ -1,0 +1,57 @@
+{
+  "issue": 51,
+  "task": 1,
+  "task_name": "Export heat's tree-walking decisions for reuse",
+  "verdict": {
+    "ruling": "PASS",
+    "rubric": [
+      {
+        "rule": "objetivo",
+        "result": "The objective promises that heat.ts exposes the main-folder, path and per-commit child decisions coupling needs, without duplicating any of them. Taken apart: (a) main-folder decision exposed -> `export function resolveMainFolder` (heat.ts:81) and `export function isWithin` (heat.ts:77); (b) path decision exposed -> `export function normalizePath` (heat.ts:72) and `export function countTouching` (heat.ts:94); (c) per-commit child decision exposed -> the new `export function touchedChildren` (heat.ts:102-125); (d) no duplication -> `childrenOf` (heat.ts:127-128) now calls `touchedChildren(commits, path)` and keeps only the percent/sort math, so the loop exists once. All four parts are in the diff and no part is owed by a line that is missing.",
+        "outcome": "conforme"
+      },
+      {
+        "rule": "asercion-tdd",
+        "result": "The **TDD:** line reads `No TDD — pure refactor, no new behaviour: heat.test.ts already pins heatTree's output through childrenOf, and it must stay green unchanged.` A `No TDD` line declares a task with no behaviour to put red, so this item has no subject and produces no finding.",
+        "outcome": "no-aplica"
+      },
+      {
+        "rule": "contrato",
+        "result": "One Contract block: `export function touchedChildren(commits: readonly Commit[], path: string): Map<string, { kind: 'dir' | 'file'; commits: Set<string> }>`. The diff states exactly that, name by name: parameter names and order (`commits`, `path`), the `readonly Commit[]` type, and the return shape including the `'dir' | 'file'` union and `Set<string>`. The four `Current state` blocks (normalizePath line 72, isWithin line 77, resolveMainFolder lines 81-84, countTouching line 94) each gained `export` with their bodies unchanged, which is what the brief asks for. No constant, error or message is in scope here. Nothing in the diff states something other than what the brief states.",
+        "outcome": "conforme"
+      },
+      {
+        "rule": "decisiones-cerradas",
+        "result": "Row by row: 'Coupling percent formula', 'Minimum co-changes', 'Scope of a pair', 'New endpoint', 'Sort order', 'Row cap in the UI' and 'Shape of the new server module' are not borne on by this diff (no coupling module, no route, no UI file touched) and comply by being left alone. The row this diff bears on is 'Where the child/main-folder decisions live': reused from heat.ts via new exports `touchedChildren`, `resolveMainFolder`, `normalizePath`, `isWithin`, `countTouching`, never re-derived. The diff exports exactly those five names and re-derives none of them. No row is reopened.",
+        "outcome": "conforme"
+      },
+      {
+        "rule": "patrones",
+        "result": "Exemplar: `server/src/analysis/heat.ts` is itself the file to imitate and the file modified; the extracted function keeps the host's idiom (free function, `readonly Commit[]` parameter, same `for (const commit of commits)` wrapper, same Map/Set aggregation) and the surrounding code is untouched. conventions/decisions.md: the main-folder/child-of-path decision stays written once, in heat.ts, and is exposed for reuse by import rather than copied - this diff is that document being obeyed, not broken. conventions/style.md: (i) no prose - the new `touchedChildren` carries no comment or docstring, and the pre-existing comments it left in place are the host's declared debt; (ii) English - `touchedChildren`, `byName`, `commits`, `path`, `kind` are all English, per AGENTS.md's English-only rule too; (iii) 'no free function at module level' - `touchedChildren` is a free function, but heat.ts is marked `(modify)` in **Files:**, pre-dates the document and is entirely free functions, so the declared-debt exemption covers what is added there. The hole that exemption opens does not apply: `touchedChildren` is not a new concept smuggled into an old file, it is the loop `childrenOf` already contained, extracted in place, and conventions/decisions.md is what requires it to stay in heat.ts. conventions/architecture.md does not travel to this task (no `(create)` path) and binds new modules only. conventions/testing.md has no subject: the diff changes no test file. Boundaries: no import was added or removed, no dependency is constructed where it is used, and `web/` is untouched, so AGENTS.md's `web/` -> `server/` boundary and the `.js` relative-import rule are not engaged. Delivery pattern: neither yardstick prescribes a shape for a pure in-module refactor, and the change is additive (`export` added, one loop extracted), leaving every existing call site on the same behaviour. No control of the plan clashes with any of these documents. conventions/defects.md, rule by rule: (1) closed vocabulary - the classifier stays the `'dir' | 'file'` union in the extracted signature (heat.ts:105) and in the internal `Map<string, 'dir' | 'file'>`; no boolean stands in for it, no string is compared by hand, no catch-all branch was added; (2) no raw map as the return value of logic - `touchedChildren` does return a `Map`, and I looked hard at this one. The defect the document names is a map 'read by key lookup in the consumer, [where] a misspelled key and an absent one are the same thing', i.e. a map standing in for a record with named fields. Here the keys are runtime data (child names discovered from the commits), not field names, and the only consumer in this diff reads it by iteration - `const entries = [...byName.entries()].map(...)` (heat.ts:130) - never by a spelled key. It is a keyed collection, which is what the pre-existing code already built internally; the extraction only widened its visibility. Independently, this exact signature is dictated verbatim by the brief's Contract block, so it was not the implementer's choice to make. No finding; (3) two fields that have to agree - the diff adds no field and no sentinel; `kind` and `commits` in the map entry are independent facts, and the absence of a child is its absence from the map rather than a zero or an empty string; (4) an error named for where it happens - no error type, no raised error and no diagnostic message anywhere in the diff, so this rule has no subject here.",
+        "outcome": "conforme"
+      },
+      {
+        "rule": "manipulacion-tests",
+        "result": "The diff touches one file, `server/src/analysis/heat.ts`, which I read: it is production code (exports `heatTree`, `Heat`, `HeatEntry`, imports from `./git.js`), not a test file. No test file appears in `## Files changed` or `## Rutas tocadas`, so there is no pre-existing test in this diff to remove, relax or rewrite. The `-` lines present are all a `function` keyword gaining `export` and the aggregation loop moving into the extracted function - no assertion, case or test among them. No subject.",
+        "outcome": "no-aplica"
+      },
+      {
+        "rule": "fixture-theater",
+        "result": "The diff contains no test scaffolding at all: the single touched file is production code. Every behaviour the objective promises is produced by production lines in `server/src/analysis/heat.ts` - the five `export` keywords and the body of `touchedChildren` - and none of it lives in a mock, a fixture, a stub or a hard-coded expected value. The observable output of `heatTree` is produced by the same aggregation the file had before, now reached through one call.",
+        "outcome": "conforme"
+      },
+      {
+        "rule": "alcance",
+        "result": "**Files:** declares `server/src/analysis/heat.ts` (modify) and that is the only path in the diff. Read inside it: five `export` keywords, the cited loop moved verbatim into `touchedChildren`, and `childrenOf` reduced to `const byName = touchedChildren(commits, path)` plus the percent/sort math it already had - each of which a sentence of the task asks for ('Add `export` to normalizePath, isWithin, resolveMainFolder and countTouching (their bodies do not change). Extract the cited loop (lines 106-117) into the new exported touchedChildren'). Nothing else was written: no rename, no extra helper, no adjacent fix, no reflow of the sort comparator or the comments. `### Out of scope` names acoplamiento entre repos, hotspots por complejidad, la evolucion del acoplamiento en el tiempo, cambiar nada de Pulso o Gente, and una navegacion distinta de la de Calor - the diff touches none of them.",
+        "outcome": "conforme"
+      },
+      {
+        "rule": "test-desiderata",
+        "result": "The diff adds no test: no test file is among the touched paths, and the only file changed is production code. **Tests:** confirms it - `N/A — no test added or removed; heat.test.ts is the existing lock on this behaviour.` With no new test to measure as an instrument, this item has no subject; the TDD skill was therefore not loaded, since nothing beyond the three blocking properties was in play.",
+        "outcome": "no-aplica"
+      }
+    ],
+    "findings": [],
+    "review_token": "5da795fa89c772113133fa1f640c907850df1da8d124ae1cc533d8aa1fd8274a"
+  }
+}
