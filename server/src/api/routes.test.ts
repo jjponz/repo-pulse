@@ -5,11 +5,15 @@ import request from 'supertest'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import * as analysis from '../analysis/index.js'
 import { createApp } from '../app.js'
+import { ArtifactFiles } from '../coverage/artifact-files.js'
+import { CoverageOrder } from '../coverage/coverage-order.js'
+import { CoverageRanking } from '../coverage/coverage-ranking.js'
 import { createCatalog } from '../repos.js'
 import { createSettingsStore } from '../settings.js'
 import { appendCommit, createRepoFixture, daysAgo } from '../testing/repo-fixture.js'
 import { createCache } from './routes.js'
 import type { AppDeps } from '../app.js'
+import type { CoverageReading } from '../coverage/coverage-reading.js'
 import type { CommitFixture, FixtureSpec, RepoFixture } from '../testing/repo-fixture.js'
 
 /**
@@ -35,6 +39,18 @@ const COMMITS: readonly CommitFixture[] = [
   { date: daysAgo(10), email: 'bea@example.com', files: ['src/dashboard/panel.ts'] },
   { date: daysAgo(5), email: 'bea@example.com', files: ['README.md', 'package-lock.json'] },
 ]
+
+/** Writes a coverage artifact into a clone, for the tests of `/api/coverage`. */
+class CoverageArtifactFixture {
+  static istanbulSummary(clonePath: string, covered: number, total: number): void {
+    const dir = join(clonePath, 'coverage')
+    mkdirSync(dir, { recursive: true })
+    writeFileSync(
+      join(dir, 'coverage-summary.json'),
+      JSON.stringify({ total: { lines: { covered, total } } }),
+    )
+  }
+}
 
 function spiesOverAnalysis() {
   return {
@@ -69,12 +85,20 @@ function createWorld(): World {
   // One instant per test, which only `advanceOneDay` moves: every window and
   // the freshness check hang off it.
   let now = new Date()
-  const depsOverTheSameFiles = (): AppDeps => ({
-    catalog: createCatalog(root, spies, () => now),
-    settings: createSettingsStore(join(dir, 'settings.json')),
-    analysis: spies,
-    now: () => now,
-  })
+  const depsOverTheSameFiles = (): AppDeps => {
+    const catalog = createCatalog(root, spies, () => now)
+    return {
+      catalog,
+      settings: createSettingsStore(join(dir, 'settings.json')),
+      analysis: spies,
+      coverage: new CoverageRanking({
+        catalog,
+        artifacts: new ArtifactFiles(createCache<CoverageReading>(64)),
+        order: new CoverageOrder(),
+      }),
+      now: () => now,
+    }
+  }
 
   return {
     root,
@@ -169,6 +193,59 @@ test('repos lists the clones', async () => {
   expect(second).toMatchObject({ id: 'ancient', stale: true })
   // A clone with no commits and no fetch: nulls and no warning, not errors.
   expect(third).toMatchObject({ id: 'empty', lastCommitAt: null, fetchedAt: null, stale: false })
+})
+
+test('GET /api/coverage ranks every clone of the root by line coverage', async () => {
+  const high = world.clone('high')
+  const low = world.clone('low')
+  CoverageArtifactFixture.istanbulSummary(high.path, 90, 100)
+  CoverageArtifactFixture.istanbulSummary(low.path, 50, 100)
+
+  const response = await request(createApp(world.deps)).get('/api/coverage')
+
+  expect(response.status).toBe(200)
+  expect(response.body).toEqual({
+    coverage: [
+      {
+        id: 'high',
+        state: 'measured',
+        percentage: 90,
+        lines: { covered: 90, total: 100 },
+        source: 'istanbul',
+        measuredAt: expect.any(String),
+      },
+      {
+        id: 'low',
+        state: 'measured',
+        percentage: 50,
+        lines: { covered: 50, total: 100 },
+        source: 'istanbul',
+        measuredAt: expect.any(String),
+      },
+    ],
+  })
+})
+
+test('GET /api/coverage answers null percentage for a clone with no artifact', async () => {
+  world.clone('empty')
+
+  const response = await request(createApp(world.deps)).get('/api/coverage')
+
+  expect(response.status).toBe(200)
+  expect(response.body).toEqual({
+    coverage: [
+      { id: 'empty', state: 'no-artifact', percentage: null, lines: null, source: null, measuredAt: null },
+    ],
+  })
+})
+
+test('GET /api/coverage carries no author name or email', async () => {
+  world.clone('alpha', { commits: COMMITS })
+
+  const response = await request(createApp(world.deps)).get('/api/coverage')
+
+  expect(response.status).toBe(200)
+  expect(JSON.stringify(response.body)).not.toContain(AUTHOR)
 })
 
 test('summary carries pulse, people, trend, meta', async () => {

@@ -1,4 +1,4 @@
-import type { BucketSize, Concentration, TimeWindow, Trend } from './api/types'
+import type { BucketSize, Concentration, CoverageState, TimeWindow, Trend } from './api/types'
 
 /**
  * The single place the API's English payload values become the Spanish text
@@ -139,4 +139,29 @@ export function heatFooter(children: number, hereCommits: number, mainFolderComm
 
 export function fallbackNotice(mainFolder: string): string {
   return `La carpeta principal guardada ya no existe en HEAD: el calor se acota a ${mainFolderLabel(mainFolder)}.`
+}
+
+/** `72,4 %`, one decimal always shown, comma of `es-ES`. */
+const coveragePercentFormatter = new Intl.NumberFormat('es-ES', {
+  minimumFractionDigits: 1,
+  maximumFractionDigits: 1,
+})
+
+export function coveragePercentage(percentage: number): string {
+  return `${coveragePercentFormatter.format(percentage)} %`
+}
+
+export function coverageHeadline(state: CoverageState, percentage: number | null): string {
+  switch (state) {
+    case 'measured':
+      return percentage === null ? '—' : coveragePercentage(percentage)
+    case 'no-artifact':
+      return 'Sin datos de cobertura'
+    case 'unreadable-artifact':
+      return 'Artefacto de cobertura ilegible'
+  }
+}
+
+export function coverageAge(measuredAt: string | null, now: Date): string {
+  return measuredAt === null ? 'sin fecha' : relativeDays(measuredAt, now)
 }

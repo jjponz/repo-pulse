@@ -2,6 +2,8 @@ import { expect, test } from 'vitest'
 import {
   bucketNoun,
   concentrationSentence,
+  coverageAge,
+  coverageHeadline,
   fallbackNotice,
   formatDay,
   formatEdge,
@@ -147,4 +149,25 @@ test('the fallback notice names the folder it fell back to', () => {
   expect(fallbackNotice('')).toBe(
     'La carpeta principal guardada ya no existe en HEAD: el calor se acota a todo el repo.',
   )
+})
+
+test('a measured coverage is shown with one decimal', () => {
+  expect(coverageHeadline('measured', 80)).toBe('80,0 %')
+})
+
+test('a coverage is rounded to one decimal at the boundary', () => {
+  expect(coverageHeadline('measured', 72.35)).toBe('72,4 %')
+  expect(coverageHeadline('measured', 72.34)).toBe('72,3 %')
+})
+
+test('a clone with no artifact is shown as sin datos de cobertura', () => {
+  expect(coverageHeadline('no-artifact', null)).toBe('Sin datos de cobertura')
+})
+
+test('an unreadable artifact is shown as ilegible', () => {
+  expect(coverageHeadline('unreadable-artifact', null)).toBe('Artefacto de cobertura ilegible')
+})
+
+test('a measure with no date is shown as sin fecha', () => {
+  expect(coverageAge(null, new Date('2026-08-19T12:00:00Z'))).toBe('sin fecha')
 })

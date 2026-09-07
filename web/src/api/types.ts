@@ -106,6 +106,20 @@ export interface Heat {
   children: HeatEntry[]
 }
 
+export type CoverageFormat = 'istanbul' | 'lcov' | 'cobertura'
+
+export type CoverageState = 'measured' | 'no-artifact' | 'unreadable-artifact'
+
+/** One entry of `GET /coverage`. No author identity: only the measure. */
+export interface RepoCoverage {
+  id: string
+  state: CoverageState
+  percentage: number | null
+  lines: { covered: number; total: number } | null
+  source: CoverageFormat | null
+  measuredAt: string | null
+}
+
 export const WINDOWS: readonly TimeWindow[] = ['30d', '90d', '12m', 'all']
 
 export const DEFAULT_WINDOW: TimeWindow = '12m'

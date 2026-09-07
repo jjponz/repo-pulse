@@ -1,6 +1,6 @@
 import { expect, test, vi } from 'vitest'
-import { ApiError, fetchHeat, fetchRepos, fetchSummary, saveMainFolder } from './client'
-import type { Clone } from './types'
+import { ApiError, fetchCoverage, fetchHeat, fetchRepos, fetchSummary, saveMainFolder } from './client'
+import type { Clone, RepoCoverage } from './types'
 
 /** A minimal stand-in for the DOM `Response` the real `fetch` resolves to. */
 function stubResponse(body: unknown, ok = true): Response {
@@ -105,4 +105,36 @@ test('a rejected main folder surfaces its code', async () => {
 
   expect(error).toBeInstanceOf(ApiError)
   expect((error as ApiError).code).toBe('invalid-body')
+})
+
+test('fetchCoverage reads the coverage array of the envelope', async () => {
+  const coverage: RepoCoverage[] = [
+    {
+      id: 'alpha',
+      state: 'measured',
+      percentage: 87.5,
+      lines: { covered: 175, total: 200 },
+      source: 'istanbul',
+      measuredAt: '2024-01-01T00:00:00.000Z',
+    },
+  ]
+  const fetchMock = vi.fn().mockResolvedValue(stubResponse({ coverage }))
+  vi.stubGlobal('fetch', fetchMock)
+
+  const result = await fetchCoverage()
+
+  expect(result).toEqual(coverage)
+  expect(fetchMock).toHaveBeenCalledWith('/api/coverage', expect.anything())
+})
+
+test('fetchCoverage turns an error envelope into an ApiError with its code', async () => {
+  const fetchMock = vi
+    .fn()
+    .mockResolvedValue(stubResponse({ error: { code: 'internal', message: 'x' } }, false))
+  vi.stubGlobal('fetch', fetchMock)
+
+  const error: unknown = await fetchCoverage().catch((caught: unknown) => caught)
+
+  expect(error).toBeInstanceOf(ApiError)
+  expect((error as ApiError).code).toBe('internal')
 })

@@ -1,0 +1,74 @@
+{
+  "issue": 45,
+  "task": 3,
+  "task_name": "the three coverage formats, read by projection",
+  "verdict": {
+    "ruling": "PASS",
+    "rubric": [
+      {
+        "rule": "objetivo",
+        "result": "The objective promises two things: turn the literal text of an istanbul, lcov or cobertura artefact into a LineCount, and raise UnreadableArtifact for a text that is not that format. Both are in the diff. IstanbulArtifact.linesFrom parses the JSON and projects total.lines.covered/total (istanbul-artifact.ts:131-138), raising on unparseable text (parse, line 141-147) and on a non-numeric claimed key (numberAt, line 161); no total.lines answers LineCount.of(0, 0) (line 134). LcovArtifact.linesFrom sums every LF:/LH: record and raises when no line starts with 'SF:' (lcov-artifact.ts:218-227). CoberturaArtifact.linesFrom finds the root <coverage element by regex, raises when absent, and reads lines-covered/lines-valid, defaulting each absent attribute to 0 and raising on a NaN value (cobertura-artifact.ts:66-86). Every LineCount.of call passes (covered, total) in the order server/src/coverage/line-count.ts declares. One edge of the raise half is not covered: an lcov record whose LF:/LH: counter is not a number yields NaN instead of raising (reported low).",
+        "outcome": "conforme"
+      },
+      {
+        "rule": "asercion-tdd",
+        "result": "The TDD line names test('an lcov file adds up the LF and LH counters of every record'), with the arrange being the literal text of a two-record lcov file (SF:/LF:/LH:/end_of_record) and the assertion being the covered and total pair, not a re-implementation of the format. The test in lcov-artifact.test.ts:175-191 is that test: the arrange is a joined array of literal lcov lines with exactly two SF:/LF:/LH:/end_of_record records, and the assertion is expect(lines.covered).toBe(23) and expect(lines.total).toBe(30) — literal sums (8+15, 10+20) written down, not recomputed from the fixture. Match on test name, on input and on expected values. The other two readers follow the same shape as the plan asked.",
+        "outcome": "conforme"
+      },
+      {
+        "rule": "contrato",
+        "result": "The Contract block declares `export class IstanbulArtifact { static linesFrom(text: string): LineCount }`, and the brief adds that lcov-artifact.ts declares `export class LcovArtifact` and cobertura-artifact.ts declares `export class CoberturaArtifact`, each with the same single static method `linesFrom(text: string): LineCount`. Name by name: all three classes are exported with those exact names, each declares `static linesFrom(text: string): LineCount` and no other public member (the rest are `private static`), and each imports LineCount from './line-count.js' and the error from './unreadable-artifact.js', both of which exist in the repository (LineCount.of(covered, total), UnreadableArtifact extends Error). The error raised is UnreadableArtifact in all three readers, with no message, matching the brief which states no message. One deviation from the sentence 'a non-numeric attribute raises' for cobertura: an empty attribute value passes as 0 because Number('') is 0 (reported low).",
+        "outcome": "conforme"
+      },
+      {
+        "rule": "decisiones-cerradas",
+        "result": "Row by row against the diff. 'Formats: exactly three: istanbul, lcov, cobertura' — three readers, no fourth, no JaCoCo. 'Metric: lines only' — every answer is a LineCount of covered/total lines only. 'An artefact with no line counters does not count' — each reader answers LineCount.of(0, 0) for its no-counter case (istanbul-artifact.ts:134, lcov 0+0 with an SF: and no LF:, cobertura-artifact.ts:82); turning that into the walk to the next candidate is a later task's row. 'Artefact that is not its format: the reader raises UnreadableArtifact' — implemented in all three. 'New server code lives under server/src/coverage/, one concept per module' — six new files there, one class each. 'Spanish is only for UI copy; identifiers, comments, test names and diagnostics in English' — every identifier and every test name is English, and there are no comments. Rows on the route, the candidate order, the ranking order, the measure date and the cache key are not touched by this diff and are not findings. No row is implemented with a different value and none is reopened.",
+        "outcome": "conforme"
+      },
+      {
+        "rule": "patrones",
+        "result": "Exemplars: the plan's exemplars are route, filesystem-reading and integration-test files (server/src/api/routes.ts, server/src/repos.ts, server/src/api/routes.test.ts, web/ files); none plays the role of a pure text reader, so the comparison that applies is the shape they share and the diff keeps — a class with a named static entrypoint, relative imports carrying the .js suffix in server/, Vitest tests beside the code, one test file per module. Repo rules (AGENTS.md, read in full): code in English, tests beside the code with .test.ts, .js suffix on relative imports in server/, no author name or email in a payload, the server never mutates a clone and never fetches, web/ never imports from server/. The diff honours all of them: pure functions over a string, no filesystem, no network, no author data, nothing imported into web/. ct's yardstick, rule by rule. style.md: no comment and no docstring anywhere in the six files; every identifier, file name and test name in English; no free function at module level — every function is a static method on its class, private helpers included. All six files are (create), so no declared-debt exemption is in play and none is claimed. architecture.md (new modules): these are infrastructure boundary readers; they import only the domain value LineCount and the domain error UnreadableArtifact, so the direction of dependencies holds and the domain still knows nobody. 'A foreign format with an open vocabulary is validated by projection' is what each one does — istanbul projects by hand exactly total.lines.covered and total.lines.total and ignores every other key the tool adds, lcov reads only the SF:/LF:/LH: records, cobertura reads only lines-covered and lines-valid — and a key it claims to know that arrives with the wrong type still breaks (istanbul-artifact.ts:161, cobertura-artifact.ts:84). 'An input that is not the expected format is corruption, not one more variant: it raises' is honoured in all three. On the 'no cast at the boundary' antipattern: istanbul-artifact.ts:151 and 155 write `parsed as Record<string, unknown>` and `lines as Record<string, unknown>`, but each cast sits immediately after the runtime check that establishes it (`typeof parsed !== 'object' || parsed === null` on line 150, and the same for total and lines on 152 and 154), so it expresses a narrowing the code has already verified rather than silencing the type checker in place of validation — not a finding. decisions.md: the three readers each raise UnreadableArtifact for their own corruption case, which is the idiom of a boundary and not one business rule written three times — there is no business change that forces touching all three at once, and each format answers for itself. The rounding rule of the metric lives once, in LineCount.percentage, and no reader re-derives it. testing.md: each test name is a sentence about what is guaranteed, not about the method called; the assertions are on the observable effect (the LineCount the reader returns) and the arranges are literal payloads of the format rather than a model of it reimplemented; no double, no mother needed for a string input, no shared state, no subprocess. defects.md, its four rules answered one by one. (1) Closed vocabulary instead of loose strings and booleans: no value in this diff classifies anything — each reader answers a LineCount or raises, there is no boolean derived from a state and no dispatch, so this rule has no subject here; the format vocabulary itself is not in this task's Files. (2) No raw map as the return value of logic: the only map is the parsed foreign JSON inside istanbul-artifact.ts, handed from the private linesSectionOf to the private numberAt of the same boundary class and never crossing a module — the return value of the logic is LineCount, and architecture.md prescribes exactly this hand projection for a foreign format, so this is not the defect. (3) Two fields that have to agree, sentinel included: LineCount carries two numbers that are one measurement, not two facts that have to agree; LineCount.of(0, 0) standing for 'no line counters' is the closest thing to a sentinel here, and it is a row the plan closed ('An artefact with no line counters: does not count') over a type that this task's Files do not include, so it is not this diff's to fix. (4) An error named for what happens, not for where: UnreadableArtifact names what happened to the artefact, not the module that raised it, and no reader declares an error of its own. No clash between a control of the plan and any of these documents: the three verification commands are a test run, a count of three test declarations and a build, and all three can be satisfied together with what these documents require.",
+        "outcome": "conforme"
+      },
+      {
+        "rule": "manipulacion-tests",
+        "result": "Does not apply: the diff is 175 insertions and no deletions ('6 files changed, 175 insertions(+)'), all six files are new (each hunk is 'new file mode 100644' over /dev/null), so there is no `-` line anywhere and no pre-existing test that could have stopped asserting.",
+        "outcome": "no-aplica"
+      },
+      {
+        "rule": "fixture-theater",
+        "result": "Production and test files split cleanly by reading them: the three *-artifact.ts files hold the readers, the three *-artifact.test.ts files hold the tests. Every promised behaviour is produced by production lines. Each test calls the real class over a literal string and asserts the numbers the real code computes — the sum in lcov-artifact.ts:223-226 produces the 23/30 of lcov-artifact.test.ts:189-190, the projection in istanbul-artifact.ts:149-163 produces the 8/10 of istanbul-artifact.test.ts:103-104, and the regexes in cobertura-artifact.ts:75-85 produce the 8/10 of cobertura-artifact.test.ts:38-39. The three raising tests assert the real `throw new UnreadableArtifact()` statements. There is no mock, no stub, no fixture file and no hard-coded return standing in for production code; delete any of the three production files and its test file cannot even resolve its import.",
+        "outcome": "conforme"
+      },
+      {
+        "rule": "alcance",
+        "result": "### Out of scope names running tests or coverage tools inside a clone, reading coverage from CI or any external service, history or trend, coverage per folder or per file, thresholds, alerts or configurable colours, and JaCoCo. The diff touches none of them: it spawns no process, reads no filesystem and no network, keeps no history, aggregates nothing per file and declares no threshold or colour, and there is no jacoco reader. Inside the six declared files, every line serves a sentence of this task: the public linesFrom of each reader is the Contract block, each private static exists only to serve it (parse, linesSectionOf and numberAt for the istanbul bullet; counterOf for the lcov bullet; rootElementOf and attributeOf for the cobertura bullet), and the nine tests are exactly the nine the **Tests:** list names, verbatim. No refactor, no rename, no extra helper and no adjacent fix.",
+        "outcome": "conforme"
+      },
+      {
+        "rule": "test-desiderata",
+        "result": "Nine new tests, three per new test file, judged on the three properties that block. Deterministic: every arrange is a literal string built in the test body — no clock, no date, no network, no path outside the test, no randomness, no sleep; the readers are pure functions of their argument, so the same code cannot pass today and fail tomorrow. Isolated: no shared mutable state, no file, port or directory, no import of any fixture, and no order dependency — each of the nine passes alone. Verifies real behaviour: every assertion is on the LineCount the production class returns or on the UnreadableArtifact it raises, never on a mock's call count, a stub's return or a constant the test just defined; none of the nine would still pass with the production lines of this diff reverted, because each imports the class the diff creates. Nothing reported here: the three properties hold, so the item is conforme however one would have written these tests, and I found nothing in the finer half worth a low either.",
+        "outcome": "conforme"
+      }
+    ],
+    "findings": [
+      {
+        "rule": "contrato",
+        "severity": "low",
+        "what": "The cobertura bullet of the brief says a non-numeric attribute raises, but an empty attribute value is accepted as 0 instead of raising, because Number('') is 0 and never NaN. The case: `<coverage lines-covered=\"\" lines-valid=\"10\">` answers LineCount.of(0, 10) — a real coverage of zero — where the brief asks for UnreadableArtifact. Nothing in the task's tests covers it, and the same hole makes a whitespace-only value read as 0.",
+        "path": "server/src/coverage/cobertura-artifact.ts",
+        "line": 22,
+        "evidence": "brief: \"a non-numeric attribute raises\"; diff: \"const value = Number(match[1])\" followed by \"if (Number.isNaN(value)) throw new UnreadableArtifact()\""
+      },
+      {
+        "rule": "objetivo",
+        "severity": "low",
+        "what": "The objective's second half — raise UnreadableArtifact for a text that is not that format — has one uncovered edge in the lcov reader: a counter that is not a number produces NaN instead of raising. The case: a text with 'SF:src/one.ts' and 'LF:abc' answers LineCount.of(0, NaN), so the reader reports a measurement it does not have instead of declaring the artefact unreadable. The brief's lcov bullet only pins the missing-SF case, so this is an edge the plan left open rather than a sentence the diff contradicts.",
+        "path": "server/src/coverage/lcov-artifact.ts",
+        "line": 19,
+        "evidence": "return line.startsWith(prefix) ? Number(line.slice(prefix.length)) : 0"
+      }
+    ],
+    "review_token": "a9f40203c792a3ea65c22fd6eba0515dc41c025941286e19e9d15ca84c642fc9"
+  }
+}

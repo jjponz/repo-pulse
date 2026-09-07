@@ -1,0 +1,57 @@
+{
+  "issue": 45,
+  "task": 6,
+  "task_name": "the payload type and the client call in `web/`",
+  "verdict": {
+    "ruling": "PASS",
+    "rubric": [
+      {
+        "rule": "objetivo",
+        "result": "The objective promises three things: web/ asks for the coverage of every clone, with its own declared types, and with the error handling the other calls already have. All three are in the diff. web/src/api/client.ts:23-26 adds `fetchCoverage(signal?)` that calls `request<{ coverage: RepoCoverage[] }>('/api/coverage', { signal })` and returns `body.coverage`; the types are declared in web/src/api/types.ts:109-121 and imported from './types', never from server/; the error handling is the shared `request` helper, so a non-ok response arrives as an `ApiError` carrying the server's `code`, which the second new test pins. Nothing beyond the objective is implemented.",
+        "outcome": "conforme"
+      },
+      {
+        "rule": "asercion-tdd",
+        "result": "Both tests the **TDD:** line names exist with the literal names asked for. `test('fetchCoverage reads the coverage array of the envelope')` (client.test.ts:110-128) stubs fetch with `stubResponse({ coverage })` and asserts `expect(result).toEqual(coverage)` plus the requested URL '/api/coverage' — the envelope's array, over a stubbed fetch, as written. `test('fetchCoverage turns an error envelope into an ApiError with its code')` (client.test.ts:130-140) asserts `toBeInstanceOf(ApiError)` and `(error as ApiError).code` is 'internal'; it asserts the code and not the HTTP status, and `stubResponse` carries no `status` field at all, so the assertion can only be satisfied by reading the envelope. Same input, same expected value as the plan wrote down.",
+        "outcome": "conforme"
+      },
+      {
+        "rule": "contrato",
+        "result": "The Contract block for web/src/api/types.ts is reproduced name by name: `CoverageFormat` = 'istanbul' | 'lcov' | 'cobertura'; `CoverageState` = 'measured' | 'no-artifact' | 'unreadable-artifact'; `RepoCoverage` with `id: string`, `state: CoverageState`, `percentage: number | null`, `lines: { covered: number; total: number } | null`, `source: CoverageFormat | null`, `measuredAt: string | null` — same names, same order, same nullability, all exported. Against the Current state block, `fetchCoverage(signal?: AbortSignal): Promise<RepoCoverage[]>` sits directly beside `fetchRepos`, reads '/api/coverage' through the same `request` helper and answers `body.coverage`, so the error path is the one `ApiError` already gives. No symbol states anything else.",
+        "outcome": "conforme"
+      },
+      {
+        "rule": "decisiones-cerradas",
+        "result": "Rows this diff bears on: Route — `GET /api/coverage` with body `{ coverage: [...] }` like `/repos`, implemented as `request<{ coverage: RepoCoverage[] }>('/api/coverage')`, the exact mirror of the `{ repos }` call above it. Formats — exactly three members in `CoverageFormat`, no fourth, JaCoCo absent. Metric lines only — `lines: { covered, total }` and `percentage`, no other counter. `No candidate counts` and `Artefact that is not its format` — both states present in `CoverageState`, with every value nullable so `no-artifact` can carry all-null. Measure date ISO 8601 — `measuredAt: string | null`, and the test uses '2024-01-01T00:00:00.000Z'. Spanish only for UI copy — every identifier, comment and test name in this diff is English. Rows about `server/src/coverage/`, the candidate order, the cache key and the ranking order have no subject in this diff and are untouched. No row is implemented with a different value.",
+        "outcome": "conforme"
+      },
+      {
+        "rule": "patrones",
+        "result": "Exemplars: web/src/api/types.ts is itself an exemplar of the plan and the new declarations follow its idiom exactly — closed string unions above the interface they classify, one short doc line per payload entry, mirroring `Clone` ('One entry of `GET /repos`. No author identity: only counts and dates.'). `fetchCoverage` follows the shape of `fetchRepos` line for line. Repo rules (AGENTS.md), all of which bind because none of ct's five documents speaks about them: code in English (met), Vitest tests beside the code (met, client.test.ts), relative imports with no `.js` suffix in web/ (met: './client', './types'), web/ never imports from server/ (met: only './types'), author names and emails never leave the server (met: `RepoCoverage` declares no author field, and the diff's own comment says so). conventions/style.md, rule by rule: the two host files are pre-existing non-conforming modules (prose docstrings throughout types.ts and client.ts, and every function at module level). The declared-debt exemption applies here and not the born-conforming clause: `RepoCoverage` is one more payload contract in the file whose declared purpose is payload contracts, and `fetchCoverage` is one more endpoint call beside four others — both genuinely extend what was already there, and the brief's **Files:** fixes both hosts, so the doc comment at types.ts:113 and the module-level `export async function` at client.ts:23 follow the style of their host and are not findings. Identifiers are English. conventions/architecture.md: no new module, no layer crossed; the boundary rule that applies is that payload types are declared on this side, which is what the diff does. conventions/decisions.md: the payload contract now exists on both sides of a process boundary, which is the unavoidable copy the document allows; the brief declares it and points at Task 5's assertion on the literal payload as the test that compares the two, so it is declared and measured, not implicit. conventions/testing.md: names are sentences, the assertion is on the literal payload the endpoint returns and on the URL requested, no mother is needed for a payload literal, and `stubResponse` was already there. conventions/defects.md, one verdict per rule: (1) closed vocabulary — conforming: `CoverageFormat` and `CoverageState` are closed unions and the absent states ('no-artifact', 'unreadable-artifact') are members of the vocabulary rather than optionals; this diff dispatches over neither, so there is no catch-all to look for. (2) raw map as the return value of logic — no subject: `fetchCoverage` returns `RepoCoverage[]`, a declared type; the `{ coverage: RepoCoverage[] }` envelope is the shape of the wire read once at the boundary and immediately projected. (3) two fields that have to agree — no sentinel: absence travels as `null` inside the type, never as 0 % or an empty string, which is exactly what the desired end state demands. `state` and the nullability of `percentage` do restate each other, and a discriminated union would make the disagreement unrepresentable, but that shape is the brief's Contract block and a row of the closed decisions table ('No candidate counts | state `no-artifact`, every value `null`'), so the diff could not have been written any other way and this is not counted as a finding. (4) an error named for what happens — conforming: the only error is the pre-existing `ApiError`, named for the failure and carrying `code`; the diff adds no error type. No skill was named under Rules to obey, so none was loaded.",
+        "outcome": "conforme"
+      },
+      {
+        "rule": "manipulacion-tests",
+        "result": "Does not apply. The diff has exactly three `-` lines, all in client.test.ts:2-3 and client.ts:1, and all three are import lines rewritten to add `fetchCoverage`, `RepoCoverage`. No assertion, case or test that already existed is removed, relaxed or rewritten; the eight pre-existing tests are untouched.",
+        "outcome": "no-aplica"
+      },
+      {
+        "rule": "fixture-theater",
+        "result": "The promised behaviour is produced by production code. Reverting the production lines (client.ts:23-26 and types.ts:109-121) leaves `fetchCoverage` non-existent, so both new tests fail to import it. Nothing is hard-coded in the test to stand in for the call: the URL asserted ('/api/coverage') and the field read (`body.coverage`) exist only in client.ts, and the test's stub supplies just the response body a real fetch would.",
+        "outcome": "conforme"
+      },
+      {
+        "rule": "alcance",
+        "result": "Nothing beyond the task is written inside the three declared files. types.ts gains only the two vocabularies and the one interface the Contract block asks for; client.ts gains only `fetchCoverage` plus the type import it needs; client.test.ts gains only the two tests **Tests:** names. No refactor, rename, extra helper or adjacent fix, and no `-` line beyond the two rewritten imports. `### Out of scope` names running tests or coverage tools in a clone, reading coverage from CI, history or trend, per-folder coverage, thresholds and colours, and JaCoCo — the diff touches none of them; `CoverageFormat` stays at three members. The Spanish copy and the «Campeones» block, which belong to later tasks of the slice, are not started here.",
+        "outcome": "conforme"
+      },
+      {
+        "rule": "test-desiderata",
+        "result": "Two new tests, both with the three properties. Deterministic: no clock, no date, no network, no randomness, no sleep — `fetch` is replaced by `vi.fn()` and the only date is the literal '2024-01-01T00:00:00.000Z' inside the fixture. Isolated: each test builds its own `fetchMock` and stubs the global itself before acting, so neither needs state the previous test left nor an order in the file; no file, port or directory is touched. Verifies real behaviour: the first asserts the array `fetchCoverage` returned and the URL the production code requested, the second asserts the `ApiError` and the `code` the production error path produced — both fail if the production lines of this diff are reverted. Nothing outside the three properties is reported, so the test-driven-development skill was not needed.",
+        "outcome": "conforme"
+      }
+    ],
+    "findings": [],
+    "review_token": "d4be3c623158ce7e4fa60df9e5bd0942c2973a7eacac0375d98538cc844defae"
+  }
+}
