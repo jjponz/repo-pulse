@@ -1,6 +1,8 @@
 import { aggregate } from './aggregate.js'
-import { readHistory } from './git.js'
+import { AnalyzeCoupling } from './coupling.js'
+import { readDirectories, readHistory } from './git.js'
 import type { Analysis, TimeWindow } from './types.js'
+import type { Coupling } from './coupling.js'
 
 export interface WalkHistoryOptions {
   /** reference instant of the window; defaults to the moment of the call */
@@ -33,6 +35,17 @@ export { AnalysisError, readDirectories, readHeadSha, readLastCommitAt } from '.
 export type { AnalysisErrorCode } from './git.js'
 export { heatTree } from './heat.js'
 export type { Heat, HeatEntry } from './heat.js'
+
+export async function couplingOf(
+  repo: string,
+  window: TimeWindow,
+  opts: { mainFolder?: string; path?: string; now?: Date } = {},
+): Promise<Coupling> {
+  return new AnalyzeCoupling(readDirectories, readHistory).run({ repo, window, ...opts })
+}
+
+export { AnalyzeCoupling, MIN_CO_OCCURRENCES } from './coupling.js'
+export type { Coupling, CouplingPair, CouplingScope } from './coupling.js'
 export { WINDOWS, DEFAULT_WINDOW, isTimeWindow } from './windows.js'
 export type {
   Analysis,
