@@ -1,8 +1,15 @@
 import { Fragment, useEffect, useState } from 'react'
 import { ApiError, fetchCoupling, fetchHeat, saveMainFolder } from './api/client'
 import type { ApiErrorCode, Coupling, Heat, TimeWindow } from './api/types'
-import { fallbackNotice, heatFooter, mainFolderLabel, noHeatHeadline } from './format'
-import { breadcrumb, heatRows, mainFolderOptions } from './heat-rows'
+import {
+  couplingFooter,
+  fallbackNotice,
+  heatFooter,
+  mainFolderLabel,
+  noCouplingHeadline,
+  noHeatHeadline,
+} from './format'
+import { breadcrumb, couplingRows, heatRows, mainFolderOptions } from './heat-rows'
 import type { HeatRow } from './heat-rows'
 
 export interface HeatBlockProps {
@@ -231,6 +238,24 @@ export default function HeatBlock({ repoId, repoName, window }: HeatBlockProps) 
             {heatFooter(heat.children.length, heat.commits, heat.mainFolderCommits)}
             {' · el % es sobre el total de la carpeta principal.'}
           </div>
+          <h3 style={{ margin: '10px 0 0', fontSize: '20px', fontWeight: 600 }}>Acoplamiento</h3>
+          {couplingError !== null && (
+            <p role="alert">No se ha podido cargar el acoplamiento ({couplingError}).</p>
+          )}
+          {coupling !== null && couplingRows(coupling.pairs).length === 0 && (
+            <div>{noCouplingHeadline(coupling.minCoOccurrences)}</div>
+          )}
+          {coupling !== null &&
+            couplingRows(coupling.pairs).map((row) => (
+              <div key={`${row.a}|${row.b}`} data-testid="coupling-row" style={ROW_STYLE}>
+                {row.a} ↔ {row.b} · {row.percent}%
+              </div>
+            ))}
+          {coupling !== null && (
+            <div style={{ fontSize: '15px', color: 'var(--color-neutral-600)', lineHeight: 1.45 }}>
+              {couplingFooter(coupling.pairs.length, coupling.minCoOccurrences)}
+            </div>
+          )}
         </>
       )}
     </section>

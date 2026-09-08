@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { expect, test, vi } from 'vitest'
 import HeatBlock from './Heat'
-import type { Coupling, Heat, HeatEntry } from './api/types'
+import type { Coupling, CouplingPair, Heat, HeatEntry } from './api/types'
 
 /** Every level of the tree below hangs from this saved main folder. */
 const MAIN_FOLDER = 'src'
@@ -39,8 +39,8 @@ function levelOf(path: string, children: readonly HeatEntry[]): Heat {
   }
 }
 
-/** An empty coupling answer for the level the same `Heat` describes. */
-function emptyCouplingOf(level: Heat): Coupling {
+/** A coupling answer for the level the same `Heat` describes, with the given pairs. */
+function couplingOf(level: Heat, pairs: readonly CouplingPair[]): Coupling {
   return {
     mainFolder: level.mainFolder,
     fallback: level.fallback,
@@ -48,7 +48,7 @@ function emptyCouplingOf(level: Heat): Coupling {
     commits: level.commits,
     minCoOccurrences: 5,
     headSha: level.headSha,
-    pairs: [],
+    pairs: [...pairs],
   }
 }
 
@@ -61,15 +61,19 @@ function isCouplingRequest(url: string): boolean {
  * No `path` in the query means "no level asked for", and the server anchors it
  * at the saved main folder — which is exactly what the block relies on to draw
  * its first level without knowing where that level is. A `/coupling` request
- * for the same level answers an empty `Coupling`.
+ * for any level answers `pairs` (empty by default, so a test that does not
+ * care about coupling sees the same empty answer as before).
  */
-function stubHeat(tree: Record<string, readonly HeatEntry[]>): { urls: string[] } {
+function stubHeat(
+  tree: Record<string, readonly HeatEntry[]>,
+  pairs: readonly CouplingPair[] = [],
+): { urls: string[] } {
   const urls: string[] = []
   vi.stubGlobal('fetch', (url: string) => {
     urls.push(url)
     const path = pathOf(url) ?? MAIN_FOLDER
     const level = levelOf(path, tree[path] ?? [])
-    const body = isCouplingRequest(url) ? emptyCouplingOf(level) : level
+    const body = isCouplingRequest(url) ? couplingOf(level, pairs) : level
     return Promise.resolve({
       ok: true,
       json: () => Promise.resolve(body),
@@ -167,11 +171,12 @@ function stubServer(): { urls: string[]; bodies: string[] } {
     }
     const scope = SCOPES[saved]
     const path = pathOf(url) ?? saved
-    return okResponse({
+    const level = {
       ...levelOf(path, scope?.levels[path] ?? []),
       mainFolder: saved,
       mainFolderCommits: scope?.commits ?? 0,
-    })
+    }
+    return okResponse(isCouplingRequest(url) ? couplingOf(level, []) : level)
   })
   return { urls, bodies }
 }
@@ -244,6 +249,36 @@ test('asks coupling for the same level heat is showing', async () => {
   })
 
   expect(urls).toContain('/api/repos/alpha/coupling?window=12m&path=src%2Fcheckout')
+})
+
+test('draws a row per coupled pair with its percent', async () => {
+  const pairs: CouplingPair[] = [
+    { a: 'checkout', aKind: 'dir', b: 'ui', bKind: 'dir', coChanges: 12, percent: 80 },
+    { a: 'checkout', aKind: 'dir', b: 'pago.ts', bKind: 'file', coChanges: 6, percent: 40 },
+  ]
+  stubHeat(TREE, pairs)
+
+  render(<HeatBlock repoId="alpha" repoName="alpha" window="12m" />)
+
+  await waitFor(() => {
+    expect(screen.getAllByTestId('coupling-row')).toHaveLength(2)
+  })
+  // Drawn in the order the double sent them: the block does not re-sort.
+  expect(screen.getAllByTestId('coupling-row').map((element) => element.textContent)).toEqual([
+    'checkout ↔ ui · 80%',
+    'checkout ↔ pago.ts · 40%',
+  ])
+})
+
+test('a level with no pair above the minimum says so instead of an empty list', async () => {
+  stubHeat(TREE, [])
+
+  render(<HeatBlock repoId="alpha" repoName="alpha" window="12m" />)
+
+  expect(
+    await screen.findByText('Ninguna pareja llega a 5 cambios juntos en esta ventana'),
+  ).toBeTruthy()
+  expect(screen.queryAllByTestId('coupling-row')).toEqual([])
 })
 
 test('going up one level asks for the parent', async () => {
@@ -383,13 +418,14 @@ test('choosing another main folder rescopes the percentages and is remembered', 
 
 test('a fallback says the saved folder is gone and which one is used', async () => {
   let fallback = true
-  vi.stubGlobal('fetch', (url: string) =>
-    okResponse({
+  vi.stubGlobal('fetch', (url: string) => {
+    const level = {
       ...levelOf(pathOf(url) ?? '', [dir('src', 240, 80), dir('docs', 60, 20)]),
       mainFolder: '',
       fallback,
-    }),
-  )
+    }
+    return okResponse(isCouplingRequest(url) ? couplingOf(level, []) : level)
+  })
 
   const gone = render(<HeatBlock repoId="alpha" repoName="alpha" window="12m" />)
 
@@ -426,7 +462,8 @@ test('a rejected save keeps the level and reports its code', async () => {
       } as unknown as Response)
     }
     const path = pathOf(url) ?? MAIN_FOLDER
-    return okResponse(levelOf(path, TREE[path] ?? []))
+    const level = levelOf(path, TREE[path] ?? [])
+    return okResponse(isCouplingRequest(url) ? couplingOf(level, []) : level)
   })
 
   render(<HeatBlock repoId="alpha" repoName="alpha" window="12m" />)
