@@ -298,7 +298,7 @@ npm run build        # expected: exit 0
 **Objective:** the barrel exposes a `couplingOf(repo, window, opts)` entry point, matching
 `heatTree`'s own calling convention.
 
-**Files:** `server/src/analysis/index.ts` (modify)
+**Files:** `server/src/analysis/index.ts` (modify), `server/src/analysis/index.test.ts` (modify)
 
 Current state (server/src/analysis/index.ts, lines 34-35):
 
@@ -340,7 +340,13 @@ npm run build        # expected: exit 0
 **Objective:** `GET /api/repos/:id/coupling` answers the same envelope and HEAD-sha cache as
 `/heat`.
 
-**Files:** `server/src/app.ts` (modify), `server/src/api/routes.ts` (modify), `server/src/api/routes.test.ts` (modify)
+**Files:** `server/src/app.ts` (modify), `server/src/api/routes.ts` (modify), `server/src/api/routes.test.ts` (modify),
+`server/src/api/errors.test.ts` (modify)
+
+Widening `AnalysisPort`'s `Pick` to add `'couplingOf'` makes it a required member of the type, so
+the hand-built `AnalysisPort` stub in `errors.test.ts` (`{ readHeadSha: fail, readLastCommitAt: fail,
+walkHistory: fail, heatTree: fail }`) stops satisfying it — add `couplingOf: fail` there, same
+shape as its three siblings. No behaviour changes in that file.
 
 Current state (server/src/app.ts, lines 20-23):
 
@@ -622,7 +628,17 @@ npm run build     # expected: exit 0
 **Objective:** the "Acoplamiento" section draws one row per pair above the minimum, sorted, and a
 clear message when there is none.
 
-**Files:** `web/src/Heat.tsx` (modify), `web/src/Heat.test.tsx` (modify)
+**Files:** `web/src/Heat.tsx` (modify), `web/src/Heat.test.tsx` (modify),
+`web/src/App.test.tsx` (modify)
+
+Rendering `coupling.pairs` for the first time surfaces a gap in `App.test.tsx`'s `stubApi` double:
+it answers `'/api/repos'`, any `'/heat?'` URL, and falls back to a `Summary` body for everything
+else — a `'/coupling?'` request now falls into that `else` branch and gets a `Summary`-shaped
+payload instead of a `Coupling` one, so `coupling.pairs` is `undefined` and `couplingRows` throws.
+Add a `'/coupling?'` branch to `stubApi` (`web/src/App.test.tsx`) answering a minimal valid empty
+`Coupling` for the level asked for — same shape `Heat.test.tsx`'s `stubHeat` default already
+answers (`pairs: []`, `minCoOccurrences: 5`, `mainFolder`/`fallback`/`path`/`headSha` consistent
+with the `Heat` the same URL's level gets). No assertion in `App.test.tsx` changes.
 
 Current state (web/src/Heat.tsx, lines 206-211):
 
