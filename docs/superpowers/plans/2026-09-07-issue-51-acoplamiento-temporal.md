@@ -696,7 +696,7 @@ nothing is left uncommitted.
 npm run build                        # expected: exit 0 — typecheck of server/ and web/ + vite build
 npm test                             # expected: exit 0 — Vitest of both workspaces
 npm run lint                         # expected: exit 0 — ESLint over the whole repo
-test -z "$(git status --porcelain)"  # expected: exit 0 — nothing left uncommitted
+test -z "$(git status --porcelain -- . ':!.agent/run-51.json' ':!.agent/run-51')"  # expected: exit 0 — nothing left uncommitted, excluding ct-step's own untracked run state (analogous to .agent/SLICE.md, deliberately outside git's view)
 ```
 
 ## 9. Assumptions
