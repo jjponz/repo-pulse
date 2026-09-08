@@ -72,7 +72,7 @@ Rules to obey:
 - ct's own yardstick, which takes precedence over `AGENTS.md` rule by rule (see the header this
   plan was dispatched with) — read from the plugin's own path, absolute because it lives outside
   this repo:
-  - `/Users/pdiazsa/Mercadona/code/others/control-tower-plugin/plugin/conventions/style.md` —
+  - /Users/pdiazsa/Mercadona/code/others/control-tower-plugin/plugin/conventions/style.md —
     binds every diff. The declared-debt exemption (keep the host file's existing style) covers
     every file this slice only MODIFIES (`heat.ts`, `index.ts`, `app.ts`, `routes.ts`,
     `client.ts`, `types.ts`, `heat-rows.ts`, `format.ts`, `Heat.tsx`: all pre-date this document
@@ -80,21 +80,21 @@ Rules to obey:
     coupling module (Task 2), created by this slice: no comments or docstrings
     there, and every function hangs off a type (`AnalyzeCoupling`, not a free `couplingOf` inside
     that file — the free function of that name lives in the OLD, exempt `index.ts` barrel).
-  - `/Users/pdiazsa/Mercadona/code/others/control-tower-plugin/plugin/conventions/architecture.md`
+  - /Users/pdiazsa/Mercadona/code/others/control-tower-plugin/plugin/conventions/architecture.md
     — binds new modules only, so it reaches the new coupling module (Task 2) and nothing else this
     slice touches. What it asks for there: one concept per module (`Coupling`, `CouplingPair`,
     `CouplingScope`, `AnalyzeCoupling` all share a life with `Coupling` and stay in one file);
     `AnalyzeCoupling`'s two git-reading dependencies enter through its constructor, by name; its
     `run` takes one params object (`CouplingScope`) and returns one result object (`Coupling`),
     both declared beside it, no suffix.
-  - `/Users/pdiazsa/Mercadona/code/others/control-tower-plugin/plugin/conventions/defects.md` —
+  - /Users/pdiazsa/Mercadona/code/others/control-tower-plugin/plugin/conventions/defects.md —
     binds every diff, no exemption: closed vocabulary over booleans (`aKind`/`bKind` stay
     `'dir' | 'file'`, matching `HeatEntry.kind`), no raw map as the coupling result, no sentinel
     standing in for an absence the type could carry.
-  - `/Users/pdiazsa/Mercadona/code/others/control-tower-plugin/plugin/conventions/decisions.md` —
+  - /Users/pdiazsa/Mercadona/code/others/control-tower-plugin/plugin/conventions/decisions.md —
     binds every diff: the main-folder/child-of-path decision is written once, in `heat.ts`; this
     slice reuses it by import (Task 1) instead of writing a second version in `coupling.ts`.
-  - `/Users/pdiazsa/Mercadona/code/others/control-tower-plugin/plugin/conventions/testing.md` —
+  - /Users/pdiazsa/Mercadona/code/others/control-tower-plugin/plugin/conventions/testing.md —
     binds every diff: test names are the sentence, the coupling threshold is pinned at its
     boundary (exactly the minimum, and one below), and `stubHeat`'s extension answers by URL, not
     by call order.
