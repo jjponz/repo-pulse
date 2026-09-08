@@ -1,0 +1,57 @@
+{
+  "issue": 51,
+  "task": 6,
+  "task_name": "Pure coupling rows and copy",
+  "verdict": {
+    "ruling": "PASS",
+    "rubric": [
+      {
+        "rule": "objetivo",
+        "result": "The objective promises three things: bar-width row shaping, the Spanish empty/footer copy, and both as pure tested functions like heatRows/heatFooter. All three are in the diff: couplingRows in web/src/heat-rows.ts (with COUPLING_ROW_LIMIT and CouplingRow), noCouplingHeadline and couplingFooter in web/src/format.ts, and three new tests. Purity holds by reading: heat-rows.ts imports only the type CouplingPair, format.ts only types from ./api/types; neither file mentions React or fetch.",
+        "outcome": "conforme"
+      },
+      {
+        "rule": "asercion-tdd",
+        "result": "The TDD line names two tests. 'the bar of the most coupled pair fills the level like heatRows' asserts over couplingRows: input pairs at 40/36/1 percent, expected ['100.0%','90.0%','2.5%'] — which is exactly what the production line computes (relative to the first pair, floored at 2, one decimal). 'the empty and footer copy name the minimum' asserts the three literal strings the brief wrote, character for character, over the two format.ts functions. Same assertion, same input, same expected value. The implementer wrote both with vitest's test() rather than it(), matching the host files' own existing convention, which is the declared-debt style of the module and not a deviation.",
+        "outcome": "conforme"
+      },
+      {
+        "rule": "contrato",
+        "result": "Every symbol of both Contract blocks matches name for name. heat-rows.ts: 'export const COUPLING_ROW_LIMIT = 8' (literal value 8), 'export interface CouplingRow extends CouplingPair { barWidth: string }', 'export function couplingRows(pairs: readonly CouplingPair[]): CouplingRow[]' — parameter name, readonly modifier and return type as written. format.ts: 'noCouplingHeadline(minCoOccurrences: number): string' and 'couplingFooter(pairs: number, minCoOccurrences: number): string' — parameter names and order as written. The three literal outputs the brief specifies are produced verbatim by the template strings, including the singular 'pareja' branch at pairs === 1. No error is raised by either function and the brief asks for none. CouplingPair is already declared in web/src/api/types.ts, so the import resolves.",
+        "outcome": "conforme"
+      },
+      {
+        "rule": "decisiones-cerradas",
+        "result": "One row bears on this diff: 'Row cap in the UI — COUPLING_ROW_LIMIT = 8, its own constant in web/src/heat-rows.ts (not reused from HEAT_ROW_LIMIT)'. The diff declares a separate constant with value 8 and slices with it; HEAT_ROW_LIMIT is left untouched. The sort-order row is honoured passively: couplingRows takes the pairs as the API sorted them and never reorders, and the brief says so. The percent formula, the minimum, the pair scope, the endpoint, the server module shape and the reuse-by-import rows bear on server tasks and this diff implements nothing against them.",
+        "outcome": "conforme"
+      },
+      {
+        "rule": "patrones",
+        "result": "Exemplar: web/src/heat-rows.ts's heatRows, which §3 names as 'the bar-width math the new couplingRows copies'. couplingRows plays the same role and matches its idiom line by line (slice by limit, top = rows[0]?.percent ?? 0, same '2.0%' zero case, same Math.max(2, ...).toFixed(1)); it omits `hottest`, which CouplingRow's contract does not carry. format.ts's new functions follow heatFooter's idiom, including the singular/plural branch. AGENTS.md: identifiers and test names are English, product copy stays Spanish (which style.md explicitly excludes from its English rule), no .js suffix in web/, no import from server/, no author name or email anywhere. style.md: both production files and both test files pre-date the document and are marked (modify) in **Files:**, and §3 declares them covered by the declared-debt exemption, so the retained doc comments and the free-function form are the host's style, not a finding. The 'new concept in an old file' hole was considered: couplingRows is the arithmetic of the Acoplamiento section of the very block heat-rows.ts's own header says it serves, and the closed-decision row places COUPLING_ROW_LIMIT in that file by name — a decision a human closed at a gate — so this is extending the host, not sheltering a new concept there. decisions.md, declared and left out of findings: the bar-width expression now exists twice in one file, in heatRows and in couplingRows, but the plan ordered exactly that copy ('computes barWidth exactly like heatRows does over percent'), and decisions.md itself says a helper both copies call from where they were does not fix it; the defect, if any, is the plan's and is judged elsewhere. simplicity.md, likewise declared: the four new exports have no caller in the tree today, and the caller is named in the desired end state ('HeatBlock ... draws an \"Acoplamiento\" section') for Task 7, so the burden is discharged inside the slice; the same reading covers the unused-by-default coChanges parameter of the new test helper, which mirrors the host helpers dir/file exactly. boundaries.md and domain.md have no subject: no external system, no port, no value object, no adapter, no error projection in this diff. defects.md, its four rules answered one by one: (1) closed vocabulary — the classifying values aKind/bKind travel as 'dir' | 'file' in the pre-existing CouplingPair and the new test helper passes 'file'; nothing here holds a classifier as a loose string or a boolean, and there is no dispatch, so no catch-all; (2) raw map as the return value of logic — couplingRows returns CouplingRow[], a declared interface, and the object literal is a typed spread, not a map read by key lookup; format's functions return strings; (3) two fields that have to agree — barWidth is derived from percent in one place and never stored beside a second source of truth, and the top === 0 branch is not a sentinel for an absence: it is the width of a bar in a level with no percent, identical to heatRows; no empty string or zero stands for a missing state; (4) an error named for where it happens — no error type, class or message is introduced by this diff, so this rule has no subject here. testing.md: the three test names are sentences that say what is guaranteed, and the copy test pins the singular/plural boundary at 1 and 3; the module-level test helper follows the host file's existing dir/file form under the same declared debt.",
+        "outcome": "conforme"
+      },
+      {
+        "rule": "manipulacion-tests",
+        "result": "The diff has exactly one `-` line in a test file: the import line of web/src/heat-rows.test.ts, replaced by a wider import list, plus the type import line. No assertion, case or test that already existed is removed, relaxed or rewritten — every other test change is a `+` line appended at the end of the file. This item has no subject.",
+        "outcome": "no-aplica"
+      },
+      {
+        "rule": "fixture-theater",
+        "result": "The promised behaviour is produced by production lines. The bar widths the test asserts come from the expression in web/src/heat-rows.ts, the row cap from COUPLING_ROW_LIMIT and the slice beside it, and the three strings from the template literals in web/src/format.ts. The test's own scaffolding is only the `pair` builder, which supplies input and computes nothing the assertion reads. Reverting the production lines leaves the three tests unable to import their subjects.",
+        "outcome": "conforme"
+      },
+      {
+        "rule": "alcance",
+        "result": "Every line serves a sentence of the task: the constant, interface and function of the Contract block for heat-rows.ts, the two functions of the Contract block for format.ts, and the three tests **Tests:** lists — no fourth test, no helper beyond the `pair` builder the tests need, no refactor of heatRows, heatFooter or anything else already in those files. What ### Out of scope names by name is untouched: nothing about a second repo, complexity hotspots, coupling over time, Pulso or Gente, and no navigation change (couplingRows takes a level's pairs and knows nothing about paths). No route, component or server file is written inside these four files.",
+        "outcome": "conforme"
+      },
+      {
+        "rule": "test-desiderata",
+        "result": "Three new tests, measured against the three properties. Deterministic: all three call pure functions with literal inputs — no clock, no date, no network, no filesystem, no randomness, no sleep; the 12-element input of the limit test is built by Array.from with an index, not a random source. Isolated: each builds its own input inline, holds no module-level mutable state, resets nothing because it mutates nothing, and none depends on the order of the file. Verifies real behaviour: every assertion is on the value the production function returned — the barWidth strings, the row count and the row identities, the three copy strings — and none is on a double, a stub or a constant the test defined; with the production lines of this diff reverted, all three fail at the import. No finding beyond those three arose, so the finer half's text was not needed.",
+        "outcome": "conforme"
+      }
+    ],
+    "findings": [],
+    "review_token": "f0496e22ce333f649bbf31c9503a377fd2a24a3d6e0fdfeee53bd4d3b1c1b63a"
+  }
+}
