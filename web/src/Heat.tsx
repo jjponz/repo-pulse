@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useState } from 'react'
-import { ApiError, fetchHeat, saveMainFolder } from './api/client'
-import type { ApiErrorCode, Heat, TimeWindow } from './api/types'
+import { ApiError, fetchCoupling, fetchHeat, saveMainFolder } from './api/client'
+import type { ApiErrorCode, Coupling, Heat, TimeWindow } from './api/types'
 import { fallbackNotice, heatFooter, mainFolderLabel, noHeatHeadline } from './format'
 import { breadcrumb, heatRows, mainFolderOptions } from './heat-rows'
 import type { HeatRow } from './heat-rows'
@@ -26,6 +26,8 @@ export default function HeatBlock({ repoId, repoName, window }: HeatBlockProps) 
   // which is every save made from an already re-anchored level.
   const [revision, setRevision] = useState(0)
   const [saveError, setSaveError] = useState<ApiErrorCode | null>(null)
+  const [coupling, setCoupling] = useState<Coupling | null>(null)
+  const [couplingError, setCouplingError] = useState<ApiErrorCode | null>(null)
 
   useEffect(() => {
     const controller = new AbortController()
@@ -48,6 +50,28 @@ export default function HeatBlock({ repoId, repoName, window }: HeatBlockProps) 
       }
     }
   }, [repoId, window, path, revision])
+
+  useEffect(() => {
+    if (heat === null) return
+    const controller = new AbortController()
+    setCoupling(null)
+    setCouplingError(null)
+    void loadCoupling(controller.signal)
+    return () => {
+      controller.abort()
+    }
+
+    async function loadCoupling(signal: AbortSignal): Promise<void> {
+      try {
+        const loaded = await fetchCoupling(repoId, window, heat?.path, signal)
+        if (signal.aborted) return
+        setCoupling(loaded)
+      } catch (caught) {
+        if (signal.aborted) return
+        setCouplingError(codeOf(caught))
+      }
+    }
+  }, [repoId, window, heat?.path])
 
   /**
    * Saves the folder and only then moves: the level goes back to "none asked

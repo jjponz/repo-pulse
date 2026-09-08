@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { expect, test, vi } from 'vitest'
 import HeatBlock from './Heat'
-import type { Heat, HeatEntry } from './api/types'
+import type { Coupling, Heat, HeatEntry } from './api/types'
 
 /** Every level of the tree below hangs from this saved main folder. */
 const MAIN_FOLDER = 'src'
@@ -39,20 +39,40 @@ function levelOf(path: string, children: readonly HeatEntry[]): Heat {
   }
 }
 
+/** An empty coupling answer for the level the same `Heat` describes. */
+function emptyCouplingOf(level: Heat): Coupling {
+  return {
+    mainFolder: level.mainFolder,
+    fallback: level.fallback,
+    path: level.path,
+    commits: level.commits,
+    minCoOccurrences: 5,
+    headSha: level.headSha,
+    pairs: [],
+  }
+}
+
+function isCouplingRequest(url: string): boolean {
+  return new URL(url, 'http://test.invalid').pathname.endsWith('/coupling')
+}
+
 /**
  * Doubles `fetch` with a server that answers by level and records every URL.
  * No `path` in the query means "no level asked for", and the server anchors it
  * at the saved main folder — which is exactly what the block relies on to draw
- * its first level without knowing where that level is.
+ * its first level without knowing where that level is. A `/coupling` request
+ * for the same level answers an empty `Coupling`.
  */
 function stubHeat(tree: Record<string, readonly HeatEntry[]>): { urls: string[] } {
   const urls: string[] = []
   vi.stubGlobal('fetch', (url: string) => {
     urls.push(url)
     const path = pathOf(url) ?? MAIN_FOLDER
+    const level = levelOf(path, tree[path] ?? [])
+    const body = isCouplingRequest(url) ? emptyCouplingOf(level) : level
     return Promise.resolve({
       ok: true,
-      json: () => Promise.resolve(levelOf(path, tree[path] ?? [])),
+      json: () => Promise.resolve(body),
     } as unknown as Response)
   })
   return { urls }
@@ -60,6 +80,11 @@ function stubHeat(tree: Record<string, readonly HeatEntry[]>): { urls: string[] 
 
 function pathOf(url: string): string | null {
   return new URL(url, 'http://test.invalid').searchParams.get('path')
+}
+
+/** The most recent `/heat` request, ignoring the `/coupling` request it triggers. */
+function lastHeatUrl(urls: string[]): string {
+  return [...urls].reverse().find((url) => !isCouplingRequest(url)) ?? ''
 }
 
 /** The names the level draws, in order. The first span of a row is its bar and carries no text. */
@@ -203,6 +228,24 @@ test('the drill-down goes down to files and the breadcrumb comes back to any lev
   expect(crumbLabels()).toEqual(['src'])
 })
 
+test('asks coupling for the same level heat is showing', async () => {
+  const { urls } = stubHeat(TREE)
+
+  render(<HeatBlock repoId="alpha" repoName="alpha" window="12m" />)
+
+  await waitFor(() => {
+    expect(rowNames()).toEqual(['checkout/', 'ui/'])
+  })
+
+  fireEvent.click(row('checkout/'))
+
+  await waitFor(() => {
+    expect(rowNames()).toEqual(['pago/'])
+  })
+
+  expect(urls).toContain('/api/repos/alpha/coupling?window=12m&path=src%2Fcheckout')
+})
+
 test('going up one level asks for the parent', async () => {
   const { urls } = stubHeat(TREE)
 
@@ -301,7 +344,7 @@ test('choosing another main folder rescopes the percentages and is remembered', 
   expect(bodies).toEqual(['{"mainFolder":"src/checkout"}'])
   // The server re-anchors the level, so the reload asks for no level at all —
   // and the same tree comes back over the smaller denominator.
-  expect(pathOf(urls.at(-1) ?? '')).toBeNull()
+  expect(pathOf(lastHeatUrl(urls))).toBeNull()
   expect(rowPercents()).toEqual(['100%'])
   expect(footer()).toBe(
     '1 hijo tocado · 150 commits aquí · total de la carpeta principal 150 · el % es sobre el total de la carpeta principal.',
