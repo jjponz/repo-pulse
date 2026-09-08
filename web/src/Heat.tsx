@@ -1,8 +1,15 @@
 import { Fragment, useEffect, useState } from 'react'
-import { ApiError, fetchHeat, saveMainFolder } from './api/client'
-import type { ApiErrorCode, Heat, TimeWindow } from './api/types'
-import { fallbackNotice, heatFooter, mainFolderLabel, noHeatHeadline } from './format'
-import { breadcrumb, heatRows, mainFolderOptions } from './heat-rows'
+import { ApiError, fetchCoupling, fetchHeat, saveMainFolder } from './api/client'
+import type { ApiErrorCode, Coupling, Heat, TimeWindow } from './api/types'
+import {
+  couplingFooter,
+  fallbackNotice,
+  heatFooter,
+  mainFolderLabel,
+  noCouplingHeadline,
+  noHeatHeadline,
+} from './format'
+import { breadcrumb, couplingRows, heatRows, mainFolderOptions } from './heat-rows'
 import type { HeatRow } from './heat-rows'
 
 export interface HeatBlockProps {
@@ -26,6 +33,8 @@ export default function HeatBlock({ repoId, repoName, window }: HeatBlockProps) 
   // which is every save made from an already re-anchored level.
   const [revision, setRevision] = useState(0)
   const [saveError, setSaveError] = useState<ApiErrorCode | null>(null)
+  const [coupling, setCoupling] = useState<Coupling | null>(null)
+  const [couplingError, setCouplingError] = useState<ApiErrorCode | null>(null)
 
   useEffect(() => {
     const controller = new AbortController()
@@ -48,6 +57,28 @@ export default function HeatBlock({ repoId, repoName, window }: HeatBlockProps) 
       }
     }
   }, [repoId, window, path, revision])
+
+  useEffect(() => {
+    if (heat === null) return
+    const controller = new AbortController()
+    setCoupling(null)
+    setCouplingError(null)
+    void loadCoupling(controller.signal)
+    return () => {
+      controller.abort()
+    }
+
+    async function loadCoupling(signal: AbortSignal): Promise<void> {
+      try {
+        const loaded = await fetchCoupling(repoId, window, heat?.path, signal)
+        if (signal.aborted) return
+        setCoupling(loaded)
+      } catch (caught) {
+        if (signal.aborted) return
+        setCouplingError(codeOf(caught))
+      }
+    }
+  }, [repoId, window, heat?.path])
 
   /**
    * Saves the folder and only then moves: the level goes back to "none asked
@@ -207,6 +238,24 @@ export default function HeatBlock({ repoId, repoName, window }: HeatBlockProps) 
             {heatFooter(heat.children.length, heat.commits, heat.mainFolderCommits)}
             {' · el % es sobre el total de la carpeta principal.'}
           </div>
+          <h3 style={{ margin: '10px 0 0', fontSize: '20px', fontWeight: 600 }}>Acoplamiento</h3>
+          {couplingError !== null && (
+            <p role="alert">No se ha podido cargar el acoplamiento ({couplingError}).</p>
+          )}
+          {coupling !== null && couplingRows(coupling.pairs).length === 0 && (
+            <div>{noCouplingHeadline(coupling.minCoOccurrences)}</div>
+          )}
+          {coupling !== null &&
+            couplingRows(coupling.pairs).map((row) => (
+              <div key={`${row.a}|${row.b}`} data-testid="coupling-row" style={ROW_STYLE}>
+                {row.a} ↔ {row.b} · {row.percent}%
+              </div>
+            ))}
+          {coupling !== null && (
+            <div style={{ fontSize: '15px', color: 'var(--color-neutral-600)', lineHeight: 1.45 }}>
+              {couplingFooter(coupling.pairs.length, coupling.minCoOccurrences)}
+            </div>
+          )}
         </>
       )}
     </section>

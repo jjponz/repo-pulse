@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, expect, test } from 'vitest'
-import { WINDOWS, walkHistory } from './index.js'
+import { WINDOWS, couplingOf, walkHistory } from './index.js'
 import { createRepoFixture, nonMergeCommits } from '../testing/repo-fixture.js'
 import type { CommitFixture, RepoFixture } from '../testing/repo-fixture.js'
 
@@ -145,4 +145,24 @@ test('the touched-files KPI ignores lockfiles, bundles and generated paths', asy
   // 10 files under src/ touched; package-lock.json, dist/bundle.js and
   // web/app.min.js do not count.
   expect(analysis.kpis.filesTouched).toBe(10)
+})
+
+test('couplingOf delegates to AnalyzeCoupling and resolves to its result', async () => {
+  const coupled = createRepoFixture({
+    commits: [
+      { date: '2026-07-01T09:00:00+00:00', email: 'ana@example.com', files: ['src/a.ts', 'src/b.ts'] },
+      { date: '2026-07-02T09:00:00+00:00', email: 'ana@example.com', files: ['src/a.ts', 'src/b.ts'] },
+      { date: '2026-07-03T09:00:00+00:00', email: 'ana@example.com', files: ['src/a.ts', 'src/b.ts'] },
+      { date: '2026-07-04T09:00:00+00:00', email: 'ana@example.com', files: ['src/a.ts', 'src/b.ts'] },
+      { date: '2026-07-05T09:00:00+00:00', email: 'ana@example.com', files: ['src/a.ts', 'src/b.ts'] },
+    ],
+  })
+
+  try {
+    const coupling = await couplingOf(coupled.path, '12m', { now: NOW })
+
+    expect(coupling.pairs).toEqual([{ a: 'a.ts', aKind: 'file', b: 'b.ts', bKind: 'file', coChanges: 5, percent: 100 }])
+  } finally {
+    coupled.cleanup()
+  }
 })

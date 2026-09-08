@@ -106,6 +106,25 @@ export interface Heat {
   children: HeatEntry[]
 }
 
+export interface CouplingPair {
+  a: string
+  aKind: 'dir' | 'file'
+  b: string
+  bKind: 'dir' | 'file'
+  coChanges: number
+  percent: number
+}
+
+export interface Coupling {
+  mainFolder: string
+  fallback: boolean
+  path: string
+  commits: number
+  minCoOccurrences: number
+  headSha: string | null
+  pairs: CouplingPair[]
+}
+
 export const WINDOWS: readonly TimeWindow[] = ['30d', '90d', '12m', 'all']
 
 export const DEFAULT_WINDOW: TimeWindow = '12m'

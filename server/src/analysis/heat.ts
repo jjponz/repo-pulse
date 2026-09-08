@@ -69,16 +69,16 @@ export async function heatTree(
 }
 
 /** Strips leading/trailing '/' and collapses repeated '/', so 'src/checkout/' and 'src/checkout' resolve to the same level. `undefined` passes through untouched. */
-function normalizePath(path: string | undefined): string | undefined {
+export function normalizePath(path: string | undefined): string | undefined {
   return path === undefined ? undefined : path.split('/').filter((segment) => segment !== '').join('/')
 }
 
 /** Whether `path` is the main folder itself or hangs from it. The root ('') covers everything. */
-function isWithin(mainFolder: string, path: string): boolean {
+export function isWithin(mainFolder: string, path: string): boolean {
   return mainFolder === '' || path === mainFolder || path.startsWith(`${mainFolder}/`)
 }
 
-function resolveMainFolder(
+export function resolveMainFolder(
   directories: readonly string[],
   saved: string | undefined,
 ): { mainFolder: string; fallback: boolean } {
@@ -91,7 +91,7 @@ function resolveMainFolder(
   return { mainFolder: auto, fallback: true }
 }
 
-function countTouching(commits: readonly Commit[], path: string): number {
+export function countTouching(commits: readonly Commit[], path: string): number {
   let count = 0
   for (const commit of commits) {
     if (commit.files.some((file) => !isNoise(file) && isUnder(path, file))) count += 1
@@ -99,7 +99,10 @@ function countTouching(commits: readonly Commit[], path: string): number {
   return count
 }
 
-function childrenOf(commits: readonly Commit[], path: string, total: number): HeatEntry[] {
+export function touchedChildren(
+  commits: readonly Commit[],
+  path: string,
+): Map<string, { kind: 'dir' | 'file'; commits: Set<string> }> {
   const byName = new Map<string, { kind: 'dir' | 'file'; commits: Set<string> }>()
 
   for (const commit of commits) {
@@ -117,6 +120,12 @@ function childrenOf(commits: readonly Commit[], path: string, total: number): He
       byName.set(name, entry)
     }
   }
+
+  return byName
+}
+
+function childrenOf(commits: readonly Commit[], path: string, total: number): HeatEntry[] {
+  const byName = touchedChildren(commits, path)
 
   const entries = [...byName.entries()].map(([name, entry]) => ({
     name,

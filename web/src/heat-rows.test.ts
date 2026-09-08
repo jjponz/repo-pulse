@@ -1,6 +1,10 @@
 import { expect, test } from 'vitest'
-import { HEAT_ROW_LIMIT, breadcrumb, heatRows, mainFolderOptions } from './heat-rows'
-import type { HeatEntry } from './api/types'
+import { COUPLING_ROW_LIMIT, HEAT_ROW_LIMIT, breadcrumb, couplingRows, heatRows, mainFolderOptions } from './heat-rows'
+import type { CouplingPair, HeatEntry } from './api/types'
+
+function pair(a: string, b: string, percent: number, coChanges = percent): CouplingPair {
+  return { a, aKind: 'file', b, bKind: 'file', coChanges, percent }
+}
 
 function dir(name: string, percent: number, commits = percent): HeatEntry {
   return { name, kind: 'dir', commits, percent }
@@ -81,4 +85,20 @@ test('the saved main folder is always an option', () => {
   // though it is at the same time a child in sight — otherwise going back to
   // what is saved would need a round trip through the root.
   expect(mainFolderOptions('web/src', 'web', [dir('src', 100)])).toEqual(['', 'web/src'])
+})
+
+test('the bar of the most coupled pair fills the level like heatRows', () => {
+  const rows = couplingRows([pair('a', 'b', 40), pair('c', 'd', 36), pair('e', 'f', 1)])
+
+  // Same math as heatRows: relative to the first pair's percent, floored at 2%.
+  expect(rows.map((row) => row.barWidth)).toEqual(['100.0%', '90.0%', '2.5%'])
+})
+
+test('at most COUPLING_ROW_LIMIT rows are drawn', () => {
+  const rows = couplingRows(
+    Array.from({ length: 12 }, (_, index) => pair(`a${index}`, `b${index}`, 100 - index)),
+  )
+
+  expect(rows).toHaveLength(COUPLING_ROW_LIMIT)
+  expect(rows.map((row) => row.a)).toEqual(['a0', 'a1', 'a2', 'a3', 'a4', 'a5', 'a6', 'a7'])
 })

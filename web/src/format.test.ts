@@ -2,12 +2,14 @@ import { expect, test } from 'vitest'
 import {
   bucketNoun,
   concentrationSentence,
+  couplingFooter,
   fallbackNotice,
   formatDay,
   formatEdge,
   formatMonth,
   heatFooter,
   mainFolderLabel,
+  noCouplingHeadline,
   noHeatHeadline,
   previousWindowLabel,
   relativeDays,
@@ -147,4 +149,10 @@ test('the fallback notice names the folder it fell back to', () => {
   expect(fallbackNotice('')).toBe(
     'La carpeta principal guardada ya no existe en HEAD: el calor se acota a todo el repo.',
   )
+})
+
+test('the empty and footer copy name the minimum', () => {
+  expect(noCouplingHeadline(5)).toBe('Ninguna pareja llega a 5 cambios juntos en esta ventana')
+  expect(couplingFooter(3, 5)).toBe('3 parejas · mínimo 5 cambios juntos para contar')
+  expect(couplingFooter(1, 5)).toBe('1 pareja · mínimo 5 cambios juntos para contar')
 })

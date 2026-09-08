@@ -42,6 +42,7 @@ function spiesOverAnalysis() {
     readLastCommitAt: vi.fn(analysis.readLastCommitAt),
     walkHistory: vi.fn(analysis.walkHistory),
     heatTree: vi.fn(analysis.heatTree),
+    couplingOf: vi.fn(analysis.couplingOf),
   }
 }
 
@@ -231,6 +232,19 @@ test('heat lists only that level', async () => {
   // Only that level: neither what hangs from 'cart' nor the sibling of 'checkout'.
   expect(JSON.stringify(response.body.children)).not.toContain('add.ts')
   expect(JSON.stringify(response.body.children)).not.toContain('dashboard')
+})
+
+test('answers the coupling of the level asked for, cached by HEAD sha', async () => {
+  world.clone('alpha', { commits: COMMITS })
+  const app = createApp(world.deps)
+
+  const first = await request(app).get('/api/repos/alpha/coupling?path=src')
+  const second = await request(app).get('/api/repos/alpha/coupling?path=src')
+
+  expect(first.status).toBe(200)
+  expect(first.body).toMatchObject({ window: '12m', path: 'src' })
+  expect(second.body).toEqual(first.body)
+  expect(world.spies.couplingOf).toHaveBeenCalledTimes(1)
 })
 
 test('settings survive a restart', async () => {

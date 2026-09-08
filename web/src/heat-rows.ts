@@ -5,7 +5,7 @@
  * fetch, no clock reads.
  */
 
-import type { HeatEntry } from './api/types'
+import type { CouplingPair, HeatEntry } from './api/types'
 
 /** Rows the mockup draws at most (`rows.slice(0, 8)`). */
 export const HEAT_ROW_LIMIT = 8
@@ -61,4 +61,21 @@ export function mainFolderOptions(
     if (child.kind === 'dir') options.push(path === '' ? child.name : `${path}/${child.name}`)
   }
   return [...new Set(options)]
+}
+
+/** Rows the Acoplamiento section draws at most. */
+export const COUPLING_ROW_LIMIT = 8
+
+export interface CouplingRow extends CouplingPair {
+  /** CSS width of the bar, relative to the most coupled pair of the level */
+  barWidth: string
+}
+
+export function couplingRows(pairs: readonly CouplingPair[]): CouplingRow[] {
+  const rows = pairs.slice(0, COUPLING_ROW_LIMIT)
+  const top = rows[0]?.percent ?? 0
+  return rows.map((row) => ({
+    ...row,
+    barWidth: top === 0 ? '2.0%' : `${Math.max(2, (row.percent / top) * 100).toFixed(1)}%`,
+  }))
 }

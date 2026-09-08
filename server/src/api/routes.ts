@@ -2,7 +2,7 @@ import { Router } from 'express'
 import { DEFAULT_WINDOW, WINDOWS, isTimeWindow } from '../analysis/index.js'
 import { freshnessOf } from '../repos.js'
 import { ApiError } from './errors.js'
-import type { Analysis, Heat, TimeWindow } from '../analysis/index.js'
+import type { Analysis, Coupling, Heat, TimeWindow } from '../analysis/index.js'
 import type { AppDeps } from '../app.js'
 import type { Catalog } from '../repos.js'
 
@@ -29,6 +29,7 @@ export function createRouter(deps: AppDeps): Router {
   const router = Router()
   const summaries = createCache<Analysis>(CACHE_LIMIT)
   const heats = createCache<Heat>(CACHE_LIMIT)
+  const couplings = createCache<Coupling>(CACHE_LIMIT)
 
   router.get('/repos', async (_request, response) => {
     response.json({ repos: await deps.catalog.list() })
@@ -75,6 +76,24 @@ export function createRouter(deps: AppDeps): Router {
     )
 
     response.json({ window, ...heat })
+  })
+
+  router.get('/repos/:id/coupling', async (request, response) => {
+    const id = request.params.id
+    const repo = await resolveRepo(deps.catalog, id)
+    const window = windowOf(request.query.window)
+    // The main folder comes from the settings store, never from the query.
+    const mainFolder = deps.settings.mainFolderOf(id)
+    const path = pathOf(request.query.path)
+    const now = deps.now()
+    const headSha = await deps.analysis.readHeadSha(repo)
+    const coupling = await couplings.remember(
+      keyOf([repo, window, headSha, dayOf(now), mainFolder, path]),
+      () => deps.analysis.couplingOf(repo, window, { mainFolder, path, now }),
+      (value) => value.headSha === headSha,
+    )
+
+    response.json({ window, ...coupling })
   })
 
   router.put('/repos/:id/settings', async (request, response) => {

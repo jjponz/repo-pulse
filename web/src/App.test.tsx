@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { expect, test, vi } from 'vitest'
 import App from './App'
-import type { Bucket, Clone, Heat, HeatEntry, Summary, SummaryMeta } from './api/types'
+import type { Bucket, Clone, Coupling, Heat, HeatEntry, Summary, SummaryMeta } from './api/types'
 
 const CLONES: Clone[] = [
   {
@@ -80,6 +80,20 @@ function heatUrls(urls: readonly string[]): string[] {
   return urls.filter((url) => url.includes('/heat?'))
 }
 
+/** An empty coupling answer for the same level `heatFor` describes. */
+function couplingFor(url: string): Coupling {
+  const level = heatFor(url)
+  return {
+    mainFolder: level.mainFolder,
+    fallback: level.fallback,
+    path: level.path,
+    commits: level.commits,
+    minCoOccurrences: 5,
+    headSha: level.headSha,
+    pairs: [],
+  }
+}
+
 /**
  * Doubles `fetch` with the two endpoints the shell calls, and records every
  * requested URL so a test can look at the last one. `vi.unstubAllGlobals()` in
@@ -99,7 +113,9 @@ function stubApi(
         ? { repos: CLONES }
         : url.includes('/heat?')
           ? heatFor(url)
-          : summaryWith(meta, typeof overrides === 'function' ? overrides(windowOf(url)) : overrides)
+          : url.includes('/coupling?')
+            ? couplingFor(url)
+            : summaryWith(meta, typeof overrides === 'function' ? overrides(windowOf(url)) : overrides)
     return Promise.resolve({ ok: true, json: () => Promise.resolve(body) } as unknown as Response)
   })
   return { urls }

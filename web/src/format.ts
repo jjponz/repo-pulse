@@ -140,3 +140,12 @@ export function heatFooter(children: number, hereCommits: number, mainFolderComm
 export function fallbackNotice(mainFolder: string): string {
   return `La carpeta principal guardada ya no existe en HEAD: el calor se acota a ${mainFolderLabel(mainFolder)}.`
 }
+
+export function noCouplingHeadline(minCoOccurrences: number): string {
+  return `Ninguna pareja llega a ${minCoOccurrences} cambios juntos en esta ventana`
+}
+
+export function couplingFooter(pairs: number, minCoOccurrences: number): string {
+  const counted = pairs === 1 ? '1 pareja' : `${pairs} parejas`
+  return `${counted} · mínimo ${minCoOccurrences} cambios juntos para contar`
+}

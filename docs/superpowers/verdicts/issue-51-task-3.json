@@ -1,0 +1,57 @@
+{
+  "issue": 51,
+  "task": 3,
+  "task_name": "Wire coupling into the analysis barrel",
+  "verdict": {
+    "ruling": "PASS",
+    "rubric": [
+      {
+        "rule": "objetivo",
+        "result": "The objective promises one thing: the barrel exposes a couplingOf(repo, window, opts) entry point matching heatTree's calling convention. The diff adds it at server/src/analysis/index.ts:39-45 with the same three parameters, the same opts shape ({ mainFolder?, path?, now? }) and the same default ({}) heatTree uses in server/src/analysis/heat.ts:44-48, returning Promise<Coupling>. The type re-exports (Coupling, CouplingPair, CouplingScope, AnalyzeCoupling, MIN_CO_OCCURRENCES) are what make the entry point usable from outside the module. Nothing the objective names is missing.",
+        "outcome": "conforme"
+      },
+      {
+        "rule": "asercion-tdd",
+        "result": "The TDD line asks for 'couplingOf delegates to AnalyzeCoupling and resolves to its result', asserting against a real fixture with a coupled pair above the minimum, calling couplingOf(fixture.path, '12m', { now: NOW }). The diff adds exactly that name (with vitest's `test`, the idiom of that file, instead of `it`), builds a real git fixture through createRepoFixture with five commits that each touch src/a.ts and src/b.ts, and asserts coupling.pairs toEqual [{ a: 'a.ts', aKind: 'file', b: 'b.ts', bKind: 'file', coChanges: 5, percent: 100 }]. Same input, same assertion, same expected value: five co-changes is the minimum MIN_CO_OCCURRENCES = 5 that coupling.ts counts (it skips coChanges < 5), and 5/min(5,5) rounds to 100. No double is used, as the line required.",
+        "outcome": "conforme"
+      },
+      {
+        "rule": "contrato",
+        "result": "The Contract block names couplingOf(repo: string, window: TimeWindow, opts?: { mainFolder?: string; path?: string; now?: Date }): Promise<Coupling>, plus the value re-exports { AnalyzeCoupling, MIN_CO_OCCURRENCES } and the type re-exports { Coupling, CouplingPair, CouplingScope }, and fixes the body as new AnalyzeCoupling(readDirectories, readHistory).run({ repo, window, ...opts }). The diff states all of it name by name, with the same parameter names and order and the same return type; the body is character-for-character the one the brief wrote. The one difference is the optionality spelling: the brief writes `opts?` and the diff writes `opts: {...} = {}` — the same call shape (two-argument calls compile either way) and the spelling heatTree itself uses, which is what the objective asked the entry point to match. The Current state block (lines 34-35, the heatTree re-exports) is untouched and the new lines sit beside it. The brief's aside that readDirectories was 'already imported in this file' is inaccurate — line 3 of the pre-existing file imported only readHistory — so the diff adds it to that import, which the contracted body requires.",
+        "outcome": "conforme"
+      },
+      {
+        "rule": "decisiones-cerradas",
+        "result": "Three rows bear on this diff. 'Minimum co-changes MIN_CO_OCCURRENCES = 5, exported by coupling.ts': the diff re-exports that same constant from the barrel and adds no second value of its own. 'Shape of the new server module — a class, AnalyzeCoupling, with its git-reading dependencies injected through the constructor by name': the diff constructs it exactly that way, passing readDirectories and readHistory. 'Where the child/main-folder decisions live — reused from heat.ts, never re-derived': the diff writes no window, main-folder or child logic at all, it delegates. The remaining rows (percent formula, scope of a pair, new endpoint, sort order, UI row cap) belong to other tasks and this diff implements nothing that bears on them.",
+        "outcome": "conforme"
+      },
+      {
+        "rule": "patrones",
+        "result": "Exemplar: heat.ts's heatTree is the pattern the new entry point copies, and couplingOf matches it line for line in signature shape, opts default and delegation to the analysis module. Repo rules (AGENTS.md): identifiers and the test name are English, relative imports in server/ carry the .js suffix (./coupling.js, ./git.js), no author name or email leaves server/src/analysis — Coupling carries none, and the pre-existing comment about History not being exported is left intact. ct's yardstick: style.md — index.ts is a (modify) path that pre-dates the document, so its declared debt covers the free-function and prose idiom of the host; couplingOf is a thin delegating entry point beside walkHistory and heatTree, genuinely extending what was already there, and the new concept itself (Coupling, AnalyzeCoupling) lives in its own module, so the hole style.md closes is not opened here. decisions.md — the main-folder/child-of-path decision stays written once in heat.ts and reaches this file only by delegation; no second wording. simplicity.md — the exported symbols are dictated verbatim by the brief's Contract block for consumers arriving later in this slice (the route of task 4, the payload's minCoOccurrences); the caller for couplingOf itself exists today in the new test. Where the plan's contract prescribes an export whose non-test caller has not arrived yet, that is declared here and left out of the findings: the diff the implementer could write is the one the contract wrote. boundaries.md — the barrel assembling AnalyzeCoupling with the two real git readers is the same seam-through-the-constructor shape the document names, and mirrors how heatTree reaches readDirectories/readHistory in this module today; nothing crosses the outer edge in this diff. domain.md — no port, value object or exception is added or renamed. defects.md, rule by rule: (1) closed vocabulary — this diff adds no value that classifies anything; aKind/bKind stay the 'dir' | 'file' union declared in coupling.ts, no boolean stands in for them, and the diff writes no dispatch and no catch-all; (2) raw map as the return value of logic — couplingOf returns the declared Coupling type, not a map, and hands AnalyzeCoupling a typed CouplingScope built from its own parameters; (3) two fields that have to agree — this diff declares no fields at all, and introduces no sentinel: the absence in the result is carried by headSha: string | null in coupling.ts, not by an empty string or a zero; (4) an error named for where it happens — the diff adds no error type and no message. testing.md — the assertion is on the observable effect (the returned pairs) and compares the literal payload rather than a reimplemented model of it, the arrange is built with real git through createRepoFixture and not with the piece under test, no value is doubled, and the threshold is exercised at its boundary (exactly five co-changes). Its 'a test named after the method it calls' antipattern brushes the new test's name, which opens with 'couplingOf', but the plan's **TDD:** line wrote that name literally and the controls searched for it: a rename would have failed the control, so it is declared here and stays out of the findings.",
+        "outcome": "conforme"
+      },
+      {
+        "rule": "manipulacion-tests",
+        "result": "Does not apply. The only `-` line in a test file is the import statement of server/src/analysis/index.test.ts, replaced to add couplingOf to the same named-import list; the removed text is `import { WINDOWS, walkHistory } from './index.js'`. No assertion, case or test is removed, relaxed or rewritten — the two pre-existing tests visible in the hunks keep their bodies untouched, and the file's other tests are outside the hunks.",
+        "outcome": "no-aplica"
+      },
+      {
+        "rule": "fixture-theater",
+        "result": "The promised behaviour lives in production code: couplingOf in server/src/analysis/index.ts constructs AnalyzeCoupling with the real readDirectories and readHistory and returns its run result, and AnalyzeCoupling in server/src/analysis/coupling.ts computes the pair. The test uses no mock, stub or fake: createRepoFixture builds a real git repository in a temporary directory and the assertion travels the whole real path. Revert the production lines of this diff and the test cannot pass — couplingOf would not exist to import.",
+        "outcome": "conforme"
+      },
+      {
+        "rule": "alcance",
+        "result": "The diff writes only inside the two declared paths, and only what the task's sentences ask for: the import line the contracted body needs, couplingOf, and the three re-export lines the Contract block spells out. No refactor of walkHistory or the surrounding re-exports, no rename, no adjacent fix, no helper nobody asked for. Nothing named by ### Out of scope is touched: no cross-repo coupling, no complexity hotspots, no time evolution, nothing in Pulso or Gente, and no navigation change (this task touches no web/ file at all).",
+        "outcome": "conforme"
+      },
+      {
+        "rule": "test-desiderata",
+        "result": "One new test. Deterministic: the window is anchored on the file's fixed NOW = 2026-08-13T12:00:00.000Z and the fixture commit dates are literal ISO instants with an explicit offset, so no real clock, network, randomness or sleep takes part. Isolated: createRepoFixture creates its own mkdtemp directory with an isolated git config, the test builds the only state it reads, and coupled.cleanup() runs in a finally, so it needs no order from the rest of the file and leaves nothing behind — it does not touch the file-level `fixture` shared by the other tests. Verifies real behaviour: the assertion is on what production code returns through the real git path, not on scaffolding; with the production lines of this diff reverted the import of couplingOf would not resolve. The finer half of this item could not be measured with the text the implementer was given: the skill control-tower-loop:test-driven-development failed to load ('Unknown skill'), so only the three blocking properties are reported, and they hold.",
+        "outcome": "conforme"
+      }
+    ],
+    "findings": [],
+    "review_token": "9780e0e4455190a1740b88e1d948b16d379403226c2b93ae925ebb9b785d6a3d"
+  }
+}
