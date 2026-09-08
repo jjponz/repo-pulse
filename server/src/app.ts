@@ -19,7 +19,7 @@ import type { SettingsStore } from './settings.js'
 /** The slice of the analysis barrel the API uses. */
 export type AnalysisPort = Pick<
   typeof analysis,
-  'readHeadSha' | 'readLastCommitAt' | 'walkHistory' | 'heatTree'
+  'readHeadSha' | 'readLastCommitAt' | 'walkHistory' | 'heatTree' | 'couplingOf'
 >
 
 export interface AppDeps {

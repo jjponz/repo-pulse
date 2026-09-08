@@ -23,7 +23,7 @@ function appOver(fail: () => never) {
   const deps: AppDeps = {
     catalog: { list: () => Promise.resolve([]), resolve: () => Promise.resolve(REPO) },
     settings: { mainFolderOf: () => undefined, setMainFolder: () => Promise.resolve() },
-    analysis: { readHeadSha: fail, readLastCommitAt: fail, walkHistory: fail, heatTree: fail },
+    analysis: { readHeadSha: fail, readLastCommitAt: fail, walkHistory: fail, heatTree: fail, couplingOf: fail },
     now: () => new Date(),
   }
   return createApp(deps)
