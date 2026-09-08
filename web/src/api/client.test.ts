@@ -1,5 +1,5 @@
 import { expect, test, vi } from 'vitest'
-import { ApiError, fetchHeat, fetchRepos, fetchSummary, saveMainFolder } from './client'
+import { ApiError, fetchCoupling, fetchHeat, fetchRepos, fetchSummary, saveMainFolder } from './client'
 import type { Clone } from './types'
 
 /** A minimal stand-in for the DOM `Response` the real `fetch` resolves to. */
@@ -74,6 +74,18 @@ test('the root level travels as an empty path, not as no path', async () => {
     '/api/repos/alpha/heat?window=90d&path=',
     '/api/repos/alpha/heat?window=90d',
   ])
+})
+
+test('asks the coupling for the level it is given', async () => {
+  const fetchMock = vi.fn().mockResolvedValue(stubResponse({ window: '90d' }))
+  vi.stubGlobal('fetch', fetchMock)
+
+  await fetchCoupling('alpha', '90d', 'src/ui')
+
+  expect(fetchMock).toHaveBeenCalledWith(
+    '/api/repos/alpha/coupling?window=90d&path=src%2Fui',
+    expect.anything(),
+  )
 })
 
 test('saves the main folder with a PUT and a JSON body', async () => {

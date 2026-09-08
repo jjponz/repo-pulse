@@ -1,0 +1,57 @@
+{
+  "issue": 51,
+  "task": 5,
+  "task_name": "Web contracts and client for coupling",
+  "verdict": {
+    "ruling": "PASS",
+    "rubric": [
+      {
+        "rule": "objetivo",
+        "result": "The objective promises two things. One: web/ declares the Coupling/CouplingPair payload on its own, never imported from server/. web/src/api/types.ts adds both interfaces locally, and neither client.ts nor types.ts gains any import from server/ (client.ts line 1 imports only from './types'). Two: web/ fetches it. client.ts adds `fetchCoupling`, which hits `/api/repos/:id/coupling` through the same private `request<T>` helper fetchHeat uses. Both halves are in the diff.",
+        "outcome": "conforme"
+      },
+      {
+        "rule": "asercion-tdd",
+        "result": "The **TDD:** line asks for `it('asks the coupling for the level it is given')` asserting the request URL is `/api/repos/alpha/coupling?window=90d&path=src/ui`, and adds 'same shape as the existing `asks the heat for the level it is given` test'. The diff's test (client.test.ts:79-89) calls `fetchCoupling('alpha', '90d', 'src/ui')` and asserts `toHaveBeenCalledWith('/api/repos/alpha/coupling?window=90d&path=src%2Fui', expect.anything())`. Same assertion, same input, same expected value: the `src%2Fui` spelling is the percent-encoding the Contract block mandates (`encodeURIComponent`), and it is literally what the named exemplar test asserts at client.test.ts:61 for heat. The plan's own 'same shape as' sentence resolves the unencoded spelling of its prose URL, and an assertion on the unencoded form could not pass against the contract it also states. Test name matches literally.",
+        "outcome": "conforme"
+      },
+      {
+        "rule": "contrato",
+        "result": "Two Contract blocks. web/src/api/types.ts: `CouplingPair` (a, aKind: 'dir' | 'file', b, bKind: 'dir' | 'file', coChanges: number, percent: number) and `Coupling` (mainFolder, fallback, path, commits, minCoOccurrences, headSha: string | null, pairs: CouplingPair[]) appear name by name, in the brief's order, with the brief's types, and both exported. web/src/api/client.ts: `fetchCoupling(id: string, window: TimeWindow, path?: string, signal?: AbortSignal): Promise<Coupling>` matches parameter names, order, optionality and return shape exactly. The body mirrors fetchHeat's exactly, including the stated query rule (`path === undefined ? '' : &path=${encodeURIComponent(path)}`), so `''` travels as an empty value and `undefined` is omitted. Both Current state anchors are respected: the types land above `export const WINDOWS`, and fetchCoupling lands above `saveMainFolder`.",
+        "outcome": "conforme"
+      },
+      {
+        "rule": "decisiones-cerradas",
+        "result": "Row by row. 'Minimum co-changes (AC3) ... echoed in the payload as minCoOccurrences': implemented, `minCoOccurrences: number` is on `Coupling`. 'New endpoint GET /api/repos/:id/coupling, same query shape (window, path)': implemented, the client builds exactly that URL with exactly those two query keys. 'Closed vocabulary over booleans (aKind/bKind stay 'dir' | 'file', matching HeatEntry.kind)': implemented as the literal union. Rows the diff does not bear on, and leaves alone: the percent formula, scope of a pair, sort order, COUPLING_ROW_LIMIT, the shape of the new server module (AnalyzeCoupling), and where the child/main-folder decisions live — all of them are server-side or web/src/heat-rows.ts, none touched here. No row is reopened.",
+        "outcome": "conforme"
+      },
+      {
+        "rule": "patrones",
+        "result": "Exemplars: the diff plays the same role as `fetchHeat` in client.ts and as the heat block of types.ts, and it matches their idiom line for line — same private `request<T>` seam, same `encodeURIComponent(id)`, same `level` local, same interface style; the new test copies the exemplar test at client.test.ts:54-64 verbatim in structure. ct's yardstick: `style.md` — all three paths are marked (modify) and pre-date the document, so the declared-debt exemption covers the doc comment on fetchCoupling (its host carries the identical one on fetchHeat, client.ts:33-38) and the free-function form of fetchCoupling. This is not the hole style.md closes in the same breath: fetchCoupling genuinely extends what the api-client module already is (a set of per-endpoint fetch functions over one shared `request`), rather than a new concept parked in an old file for the exemption — and `architecture.md` does not reach this task, which declares no (create) path. Identifiers, test name and comment are all English (AGENTS.md), relative imports in web/ carry no `.js` suffix, and web/ imports nothing from server/. `decisions.md`: the `path === undefined` query rule now reads twice inside client.ts (fetchHeat, fetchCoupling). I leave it out of the findings: decisions.md itself says 'the idiom of a boundary is not a rule ... is there a business change that forces touching both at once?' — there is not; heat and coupling are two endpoints that happen to share a query spelling — and it rules that at two occurrences the rule of three applies, with 'a helper both copies call' explicitly not the fix. The brief's Contract block also orders it ('mirrors fetchHeat's exactly'). `simplicity.md`: `fetchCoupling` and its `signal` parameter have no production caller in web/ yet; the caller (HeatBlock) is the slice's own Desired end state and arrives in a later task of the same slice, and the Contract block mandates the parameter — declared here, not a finding. `boundaries.md`/`domain.md`: no new adapter, port, value object or error; validation stays where it was in `request`/`errorFrom`, with no new cast added. defects.md, four rules: (1) closed vocabulary — the classifying values `aKind`/`bKind` are the closed union `'dir' | 'file'`, not loose strings or booleans, and no dispatch over them is added here; (2) raw map as the return value of logic — none, `fetchCoupling` returns the declared `Coupling` interface, not a map; (3) two fields that have to agree, sentinels included — `headSha` carries absence as `string | null` rather than an empty string, and an empty window is the empty `pairs` array rather than a sentinel count; `fallback` beside `mainFolder` is the brief's verbatim contract and mirrors the pre-existing `Heat`, and it does not repeat what `mainFolder` says (it says the saved folder is gone from HEAD, which the name alone cannot); (4) an error named for where it happens — no subject, this diff adds no error type. `testing.md`: the test name is the sentence, and the assertion is on the literal payload sent at the boundary (the URL string), not on a model of it.",
+        "outcome": "conforme"
+      },
+      {
+        "rule": "manipulacion-tests",
+        "result": "The diff has exactly two `-` lines: the import line of client.test.ts (line 2, gaining `fetchCoupling`) and the type-import line of client.ts (line 1, gaining `Coupling`). Neither touches an assertion, a case or a test. No pre-existing test in client.test.ts is removed, relaxed or rewritten — all nine that were there are intact, including the two heat tests. This item has no subject.",
+        "outcome": "no-aplica"
+      },
+      {
+        "rule": "fixture-theater",
+        "result": "The promised behaviour lives in production code: `fetchCoupling` in web/src/api/client.ts builds the URL and calls the real `request<T>`, and the two interfaces are real declarations in web/src/api/types.ts. The test's own scaffolding is only `stubResponse` and the `vi.fn()` standing in for the browser's `fetch` — the boundary the client talks to, which is what testing.md's adapter rule asks to cut right before. The asserted URL is produced by the production template string, not by the test: delete the `coupling` line from client.ts and the assertion has nothing to compare against.",
+        "outcome": "conforme"
+      },
+      {
+        "rule": "alcance",
+        "result": "Three files, exactly the three the **Files:** line declares, and what is written inside them is the task and nothing else: two interfaces in types.ts, one exported function in client.ts, one test in client.test.ts. No refactor, rename, extra helper or adjacent fix travels with them — `fetchHeat`, `saveMainFolder`, `request`, `errorFrom` and the pre-existing interfaces are untouched. `### Out of scope` is respected by name: nothing about cross-repo coupling, complexity hotspots, coupling over time, Pulso or Gente, or Calor's navigation appears here.",
+        "outcome": "conforme"
+      },
+      {
+        "rule": "test-desiderata",
+        "result": "One new test, client.test.ts:79-89. Deterministic: no clock, date, network, filesystem path or randomness — `fetch` is stubbed and the resolved body is a literal. Isolated: it stubs the global it needs itself, and web/src/testing/setup.ts registers `afterEach(() => { cleanup(); vi.unstubAllGlobals() })`, so the stubbed `fetch` is undone between tests and the test needs no order from the rest of the file. Verifies real behaviour: the assertion is on the argument the production code passed to `fetch`, so with the `fetchCoupling` lines of this diff reverted it cannot pass. All three properties hold. For the finer half I tried to load the skill `control-tower-loop:test-driven-development` and it did not load ('Unknown skill'), so that yardstick did not arrive: I report only the three properties above, and nothing beyond them, which is the part that blocks.",
+        "outcome": "conforme"
+      }
+    ],
+    "findings": [],
+    "review_token": "d90478072a14d7690ea9582c27d172bb72275583d49b6d84f50baa1b638c1a5f"
+  }
+}

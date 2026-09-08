@@ -1,4 +1,4 @@
-import type { ApiErrorCode, Clone, Heat, Summary, TimeWindow } from './types'
+import type { ApiErrorCode, Clone, Coupling, Heat, Summary, TimeWindow } from './types'
 
 /**
  * Thrown by every function below for a response that is not `ok`, or one that
@@ -46,6 +46,25 @@ export async function fetchHeat(
   return request<Heat>(`/api/repos/${encodeURIComponent(id)}/heat?window=${window}${level}`, {
     signal,
   })
+}
+
+/**
+ * Asks for the coupling of one level. `path` is left out of the URL only when
+ * it is `undefined`: `''` is the root of the clone, a legitimate level, and it
+ * travels as an empty value so the server can tell it apart from "no level
+ * asked for".
+ */
+export async function fetchCoupling(
+  id: string,
+  window: TimeWindow,
+  path?: string,
+  signal?: AbortSignal,
+): Promise<Coupling> {
+  const level = path === undefined ? '' : `&path=${encodeURIComponent(path)}`
+  return request<Coupling>(
+    `/api/repos/${encodeURIComponent(id)}/coupling?window=${window}${level}`,
+    { signal },
+  )
 }
 
 export async function saveMainFolder(
