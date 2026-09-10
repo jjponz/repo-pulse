@@ -1,0 +1,57 @@
+{
+  "issue": 55,
+  "task": 1,
+  "task_name": "el documento de controles locales",
+  "verdict": {
+    "ruling": "PASS",
+    "rubric": [
+      {
+        "rule": "objetivo",
+        "result": "El objetivo promete que una persona encuentre en un solo documento el requisito de Node.js y los cuatro comandos exactos. Lo descompongo en tres piezas y localizo cada una en el diff: (1) un solo documento nuevo, `docs/verification/ct-138-local-checks.md`, que es el unico fichero del diff; (2) el requisito de Node — «Node.js >=22. La fuente de verdad es `engines.node` del `package.json` de la raiz (`\">=22\"`); la CI fija `node-version: 22`», que comprobado contra el arbol es cierto (`package.json` raiz declara `\"node\": \">=22\"` y `.github/workflows/ci.yml` fija `node-version: 22`); (3) los cuatro comandos desde la raiz, uno por linea, con lo que ejecutan de verdad: `npm install`, `npm run build` (`npm run build --workspaces`), `npm test` (`npm run test --workspaces`) y `npm run lint` (`eslint .`), literalmente los tres scripts del `package.json` de la raiz. Nada del objetivo queda sin linea que lo produzca, y el diff no produce nada mas alla de lo que la tarea pide.",
+        "outcome": "conforme"
+      },
+      {
+        "rule": "asercion-tdd",
+        "result": "No aplica: la linea **TDD:** dice «No TDD — es documentacion: no hay comportamiento que poner en rojo», y **Tests:** dice «N/A — no hay codigo nuevo». No hay test nombrado por el plan cuyo cuerpo comparar.",
+        "outcome": "no-aplica"
+      },
+      {
+        "rule": "contrato",
+        "result": "No aplica en su sentido propio: el brief no trae ningun bloque `Contract (path):`, `Current state (path):` ni `Call site (path):`, y el diff no introduce simbolos, firmas, tipos, errores ni constantes — es un `.md`. Lo unico contractual es el bloque `Final text (docs/verification/ct-138-local-checks.md)`, cuya presencia verbatim ya comprobo el programa; lo he releido linea a linea contra el diff y coincide exacto, incluidos el guion largo de cada comando, el punto y coma de la linea de Node y las dos lineas de la nota citada.",
+        "outcome": "no-aplica"
+      },
+      {
+        "rule": "decisiones-cerradas",
+        "result": "Ocho filas, fila a fila contra el diff. (1) Ruta y nombre: `docs/verification/ct-138-local-checks.md` exactamente, directorio nuevo creado con el fichero — cumple. (2) Idioma: prosa en espanol — cumple. (3) Fuente del requisito de Node: `engines.node` del `package.json` de la raiz con su valor `\">=22\"` citado como fuente de verdad y la CI fijando `node-version: 22` — cumple y es cierto contra el arbol. (4) Fuente de los comandos: los scripts de la raiz con su valor literal `npm run build --workspaces`, `npm run test --workspaces`, `eslint .` — cumple, verificado contra `package.json`. (5) Comando de instalacion: `npm install` en la raiz y mencion de que la CI usa `npm ci` — cumple. (6) Ficheros que anade el slice: uno y solo uno, sin indices ni enlaces desde `README.md` ni entradas en `AGENTS.md` — cumple (`## Files changed` trae un solo fichero). (7) Nota de «instrucciones, no evidencia»: esta en el documento, pegada a la lista de comandos, y niega las dos cosas por separado («no afirma que se hayan ejecutado ni que hayan pasado») — cumple. (8) Numero de tareas: una — cumple. Ninguna fila queda implementada con otro valor.",
+        "outcome": "conforme"
+      },
+      {
+        "rule": "patrones",
+        "result": "Ejemplares: `docs/superpowers/plans/2026-08-17-issue-5-ui-shell-y-pulso.md` (prosa del repo en espanol con comandos y rutas entre backticks) y `AGENTS.md` (secciones cortas, lista de comandos una por linea con el porque inline). Abro los dos: el documento del diff usa el mismo idioma, la misma tipografia de backticks para comandos y ficheros, y la misma forma de «comando — lo que hace» que `## Build, test & lint` de `AGENTS.md`; el idioma del diff es el que fija esa vara del repo («si lo lee un compilador, ingles; si lo lee una persona como producto o como conversacion, espanol») y el nombre del fichero viene en ingles, que es lo que `conventions/style.md` alcanza. No hay choque entre las dos varas: `conventions/style.md` excluye expresamente el texto que lee una persona, asi que la prosa en espanol no lo contradice. Vara de ct, documento a documento sobre un diff que es solo un `.md`: `style.md` — la regla de no-prosa alcanza al codigo, y aqui no hay codigo, identificadores ni funciones; nombre de fichero en ingles, conforme. `architecture.md` y `domain.md` — no hay modulo, capa, puerto, caso de uso ni valor: sin sujeto. `boundaries.md` — no hay borde externo, adaptador ni modelo de frontera: sin sujeto. `testing.md` — el diff no anade ni toca tests: sin sujeto. `simplicity.md` — lo anadido es exactamente lo que el objetivo y el bloque `Final text` piden, sin apartado de desarrollo, sin variables de entorno y sin procedimiento de CI: la carga de la prueba queda descargada contra el problema de hoy. `decisions.md` — lo miro en serio porque el documento repite lo que `AGENTS.md` ya dice de Node y de los comandos; no lo cuento como hallazgo por dos razones citables: el propio documento nombra `engines.node` del `package.json` de la raiz como **fuente de verdad** y remite a `## Build, test & lint` de `AGENTS.md` como «guia durable», de modo que no declara la regla, la referencia; y la copia es exactamente lo que cerro una fila de `## 2. Closed decisions` y la revision humana del plan, que el item 4 me prohibe reabrir. `defects.md`, sus cuatro reglas, una por una: vocabulario cerrado — sin sujeto, el diff no clasifica nada ni despacha sobre ningun valor; mapa crudo como valor de retorno de logica — sin sujeto, no hay funcion ni retorno; dos campos que tienen que concordar (centinelas incluidos) — sin sujeto, no hay estado representable ni campo alguno; error nombrado por donde ocurre — sin sujeto, el diff no declara ni lanza errores.",
+        "outcome": "conforme"
+      },
+      {
+        "rule": "manipulacion-tests",
+        "result": "No aplica: el diff es un fichero nuevo con 21 lineas de adicion y cero lineas `-` (`1 file changed, 21 insertions(+)`). No hay ninguna asercion, caso ni test preexistente que se haya quitado, relajado o reescrito, ni fichero de test entre las rutas tocadas.",
+        "outcome": "no-aplica"
+      },
+      {
+        "rule": "fixture-theater",
+        "result": "No aplica: **Files:** declara un unico documento (`docs/verification/ct-138-local-checks.md` (create)) y el diff no trae codigo de produccion ni andamiaje de test. El comportamiento que promete el objetivo es que el documento exista y diga lo que dice, y eso lo produce el propio fichero del diff, no un mock, un fixture ni un valor esperado clavado a mano.",
+        "outcome": "no-aplica"
+      },
+      {
+        "rule": "alcance",
+        "result": "Dentro del unico fichero declarado, todo lo escrito traza a una frase de la tarea: el titulo `# Controles locales de repo-pulse`, la entradilla de dos lineas sobre las comprobaciones locales y la CI (`.github/workflows/ci.yml`) en cada pull request y en cada push a `main`, la linea que remite a `## Build, test & lint` de `AGENTS.md` como guia durable, y el bloque `Final text` literal. Lo que `### Out of scope` protege por nombre no aparece: nada de `npm run dev`, nada de `REPO_PULSE_ROOT` / `REPO_PULSE_DATA_DIR`, ningun procedimiento de CI, ningun indice ni enlace desde `README.md` o `AGENTS.md`, y ni una linea de codigo, configuracion o test.",
+        "outcome": "no-aplica"
+      },
+      {
+        "rule": "test-desiderata",
+        "result": "No aplica: el diff no anade ningun test — el unico fichero es un documento `.md` y no hay lineas `+` en ningun fichero de test.",
+        "outcome": "no-aplica"
+      }
+    ],
+    "findings": [],
+    "review_token": "b7e6b44eebf0f15588b1804560ad4fd58b103d19c5369f44fa173827c22b928d"
+  }
+}
