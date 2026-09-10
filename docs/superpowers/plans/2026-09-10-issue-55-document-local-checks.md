@@ -151,25 +151,39 @@ test -z "$(git diff --name-only 5b2ccb19753c4c96a4d31028d25de36c2dcce676..HEAD -
 
 ## 8. Global verification
 
-Con la única tarea commiteada, desde la raíz. El primer predicado prueba que, fuera de los
-artefactos que el propio loop commitea bajo `docs/superpowers/` (el plan, el veredicto de la
-tarea y las métricas del run), el slice añade **un** fichero y nada más; el segundo, que ese
-fichero es el documento, por su nombre exacto; el tercero, que todo el diff vive en `docs/`; el
-cuarto, que no queda nada sin commitear fuera de `docs/superpowers/`, que es donde viven los
-artefactos que el propio loop escribe mientras corre (las métricas del run, el veredicto) y la
-enmienda de este plan, que se commitea a mano antes de abrir el pull request. Los cuatro,
-ejecutados hoy: exit 0.
+Los controles comparan **conjuntos completos de rutas**, leídos de la salida delimitada por NUL
+de git (`--name-only -z`), normalizados con `LC_ALL=C sort` y comparados contra la lista exacta.
+Ninguna exclusión por directorio: un fichero de más bajo `docs/superpowers/` —
+`docs/superpowers/unrelated.md`, por ejemplo — pone el predicado en rojo, y también lo pone la
+ausencia de un obligatorio.
 
-`npm run build`, `npm test` y `npm run lint` no entran como control de este slice: el diff no
-sale de `docs/**`, y eso es justo lo que mide el tercer predicado. El baseline de este worktree
-está declarado **no-verificado** en `.agent/SLICE.md`, así que un verde suyo aquí no mediría el
-slice sino el estado previo del repositorio.
+Las únicas cinco rutas admitidas en el diff contra `5b2ccb1` son el plan, el documento
+entregado, `docs/superpowers/metrics/issue-55.jsonl`,
+`docs/superpowers/verdicts/issue-55-task-1.json` y
+`docs/superpowers/verdicts/issue-55-slice.json`. En la **fase global**, previa al veredicto del
+slice, las cuatro primeras son obligatorias y solo la quinta puede faltar todavía: eso es lo que
+acepta el primer predicado, y nada más. El segundo exige que todas sean **adiciones**
+(`--diff-filter=a`, que lista lo que NO es una adición, ha de venir vacío). El tercero exige los
+ficheros protegidos intactos, por nombre. El cuarto limita la tolerancia de árbol sucio a la
+ruta exacta de las métricas del run, que la propia ejecución de esta verificación escribe.
+
+Los dos últimos son la **verificación final** de la entrega: las cinco rutas exactas, sin que
+falte ninguna, y el árbol completo limpio sin excepción. Ya entregado el slice, los seis están
+en verde; si esta §8 se ejecutase otra vez ANTES del veredicto del slice, esos dos últimos
+estarían rojos con razón, porque la quinta ruta aún no existiría.
+
+`npm run build`, `npm test` y `npm run lint` no entran como control de este slice: el conjunto
+de rutas del diff, comparado exacto, ya prueba que no se tocó nada más que documentación. El
+baseline de este worktree está declarado **no-verificado** en `.agent/SLICE.md`, así que un
+verde suyo aquí no mediría el slice sino el estado previo del repositorio.
 
 ```bash
-test "$(git diff --name-only 5b2ccb19753c4c96a4d31028d25de36c2dcce676..HEAD | grep -cv '^docs/superpowers/')" -eq 1   # expected: exit 0 — un solo fichero de producto
-test "$(git diff --name-only 5b2ccb19753c4c96a4d31028d25de36c2dcce676..HEAD | grep -c '^docs/verification/ct-138-local-checks.md$')" -eq 1   # expected: exit 0 — y es el documento
-test -z "$(git diff --name-only 5b2ccb19753c4c96a4d31028d25de36c2dcce676..HEAD | grep -v '^docs/')"   # expected: exit 0 — todo el diff vive en docs/
-test -z "$(git status --porcelain -- . ':!docs/superpowers')"   # expected: exit 0 — nada sin commitear fuera de los artefactos del loop
+test "$(git diff --name-only -z 5b2ccb19753c4c96a4d31028d25de36c2dcce676..HEAD | tr '\0' '\n' | LC_ALL=C sort | tr '\n' '|')" = 'docs/superpowers/metrics/issue-55.jsonl|docs/superpowers/plans/2026-09-10-issue-55-document-local-checks.md|docs/superpowers/verdicts/issue-55-task-1.json|docs/verification/ct-138-local-checks.md|' || test "$(git diff --name-only -z 5b2ccb19753c4c96a4d31028d25de36c2dcce676..HEAD | tr '\0' '\n' | LC_ALL=C sort | tr '\n' '|')" = 'docs/superpowers/metrics/issue-55.jsonl|docs/superpowers/plans/2026-09-10-issue-55-document-local-checks.md|docs/superpowers/verdicts/issue-55-slice.json|docs/superpowers/verdicts/issue-55-task-1.json|docs/verification/ct-138-local-checks.md|'   # expected: exit 0 — fase global: el conjunto exacto de rutas, con el veredicto del slice como la única ausencia admitida
+test -z "$(git diff --name-only --diff-filter=a -z 5b2ccb19753c4c96a4d31028d25de36c2dcce676..HEAD | tr -d '\0')"   # expected: exit 0 — las cinco son adiciones: nada modificado ni borrado
+test -z "$(git diff --name-only -z 5b2ccb19753c4c96a4d31028d25de36c2dcce676..HEAD -- AGENTS.md README.md package.json package-lock.json eslint.config.js tsconfig.base.json server web .github | tr -d '\0')"   # expected: exit 0 — los protegidos, intactos y por nombre
+test "$(git status --porcelain -z | tr '\0' '\n' | sed 's/^...//' | LC_ALL=C sort | tr '\n' '|')" = '' || test "$(git status --porcelain -z | tr '\0' '\n' | sed 's/^...//' | LC_ALL=C sort | tr '\n' '|')" = 'docs/superpowers/metrics/issue-55.jsonl|'   # expected: exit 0 — fase global: sin commitear, solo la ruta exacta de las métricas del run
+test "$(git diff --name-only -z 5b2ccb19753c4c96a4d31028d25de36c2dcce676..HEAD | tr '\0' '\n' | LC_ALL=C sort | tr '\n' '|')" = 'docs/superpowers/metrics/issue-55.jsonl|docs/superpowers/plans/2026-09-10-issue-55-document-local-checks.md|docs/superpowers/verdicts/issue-55-slice.json|docs/superpowers/verdicts/issue-55-task-1.json|docs/verification/ct-138-local-checks.md|'   # expected: exit 0 — verificación final: las cinco rutas exactas, ninguna ausente
+test -z "$(git status --porcelain -z | tr -d '\0')"   # expected: exit 0 — verificación final: árbol completo limpio, sin excepción
 ```
 
 ## 9. Assumptions
@@ -199,15 +213,18 @@ test -z "$(git status --porcelain -- . ':!docs/superpowers')"   # expected: exit
    el alcance intacto: sigue siendo una sola tarea documental y un solo fichero. La escribo en
    el documento (no en el plan) porque quien la tiene que leer es quien abre el documento.
    Procedencia: revisión humana del plan (2026-09-10).
-8. **La verificación global de §8 se enmendó durante la implementación.** Su primer predicado
-   contaba dos ficheros en el diff (el plan y el documento) y dejaba fuera los artefactos que
-   la maquinaria del loop commitea sola: `docs/superpowers/verdicts/issue-55-task-1.json` y
-   `docs/superpowers/metrics/issue-55.jsonl`. Con cuatro ficheros en el diff, el control se
-   puso rojo por un dato falso del plan, no por el trabajo. Ahora mide lo que quería medir: un
-   único fichero de producto, y que es el documento. Su cuarto predicado tampoco puede exigir
-   el árbol entero limpio: `docs/superpowers/` es donde el loop escribe mientras corre, y esta
-   propia enmienda vive ahí hasta que se commitea a mano antes de abrir el pull request — que
-   es lo que la máquina pide para el material que no sale de una tarea. Procedencia:
-   `ct-step global` en rojo y `ct-step next` en PRECONDITION (2026-09-10).
+8. **La verificación global de §8 se corrigió dos veces, y la segunda es la que vale.** La
+   primera versión contaba dos ficheros en el diff y dejaba fuera los artefactos que la
+   maquinaria commitea sola (`docs/superpowers/verdicts/issue-55-task-1.json` y
+   `docs/superpowers/metrics/issue-55.jsonl`), así que se puso roja por un dato falso del plan
+   y no por el trabajo. La segunda la arregló excluyendo el directorio `docs/superpowers/`
+   entero, con `grep -cv` y con el pathspec `':!docs/superpowers'`, y **eso no vale**: una
+   exclusión por directorio deja pasar cualquier fichero de más ahí dentro, así que el verde
+   que dio no prueba el control estricto. La versión vigente compara conjuntos completos de
+   rutas leídos con `--name-only -z`, distingue la fase global (donde solo el veredicto del
+   slice puede faltar) de la verificación final (las cinco exactas y árbol limpio), exige que
+   todas sean adiciones y limita la tolerancia de árbol sucio a la ruta exacta de las métricas.
+   Procedencia: revisión humana de la pull request #57 (2026-09-10), sobre `ct-step global` en
+   rojo y `ct-step next` en PRECONDITION del mismo día.
 9. **Sin tests y sin TDD**, declarado en la tarea con `No TDD — …`: no hay comportamiento.
    Procedencia: decisión propia.
