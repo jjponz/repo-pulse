@@ -35,6 +35,8 @@ spec)`), así que los propone este plan a partir del «Comentario de quien pide 
 - El documento lista los cuatro comandos, desde la raíz: `npm install`, `npm run build`,
   `npm test` y `npm run lint`, cada uno con lo que ejecuta de verdad según el `package.json` de
   la raíz.
+- El documento dice de forma explícita que esos comandos son instrucciones para ejecutar desde
+  la raíz del repositorio, y **no** evidencia de que se hayan ejecutado ni de que hayan pasado.
 - Ningún otro fichero del repositorio cambia: ni código de aplicación, ni configuración, ni
   tests existentes, ni `README.md`, ni `AGENTS.md`.
 
@@ -58,6 +60,7 @@ queda en una sola tarea de documentación. El pull request resultante **no se me
 | Fuente de los comandos | los scripts del `package.json` de la raíz, con su valor literal: `npm run build --workspaces`, `npm run test --workspaces`, `eslint .` |
 | Comando de instalación | `npm install` en la raíz para local; se menciona que la CI usa `npm ci` |
 | Ficheros que el slice añade | uno y solo uno: el documento. Nada de índices, enlaces desde `README.md` ni entradas en `AGENTS.md` |
+| Nota de «instrucciones, no evidencia» | va en el propio documento, pegada a la lista de comandos, y niega las dos cosas por separado: que se hayan ejecutado y que hayan pasado (revisión humana del plan) |
 | Número de tareas | una: lo pide el comentario de quien pide el plan («Keep the plan to one small documentation task») |
 
 ## 3. Reference patterns
@@ -114,29 +117,34 @@ raíz (`">=22"`); la CI fija `node-version: 22`.
 - `npm run build` — `npm run build --workspaces`.
 - `npm test` — `npm run test --workspaces`.
 - `npm run lint` — `eslint .`.
+
+> Son instrucciones para ejecutar desde la raíz, no evidencia: este documento
+> no afirma que se hayan ejecutado ni que hayan pasado.
 ```
 
 Alrededor de ese bloque, y en español: un título `# Controles locales de repo-pulse`, una
 entradilla de dos o tres líneas que diga que son las comprobaciones que se pasan en local antes
 de abrir un pull request y que la CI (`.github/workflows/ci.yml`) ejecuta las mismas en cada
-pull request y en cada push a `main`, y —debajo de la lista— una línea que remita a la sección
-`## Build, test & lint` de `AGENTS.md` como guía durable. Nada más: sin apartado de desarrollo,
-sin variables de entorno, sin procedimiento de CI.
+pull request y en cada push a `main`, y una línea que remita a `## Build, test & lint` de
+`AGENTS.md` como guía durable. Nada más: sin apartado de desarrollo, sin variables de entorno y
+sin procedimiento de CI. La nota del bloque va literal: es lo que pidió la revisión del plan.
 
 **TDD:** No TDD — es documentación: no hay comportamiento que poner en rojo.
 
 **Tests:** N/A — no hay código nuevo.
 
-**Verification:** los cinco, exit 0. Los dos primeros prueban que el documento existe y que
+**Verification:** los seis, exit 0. Los dos primeros prueban que el documento existe y que
 nombra los cuatro comandos, uno por línea; el tercero, que declara el requisito de Node por su
-fuente de verdad; el cuarto, que lo que dice de los scripts sigue siendo cierto en el
-`package.json` de la raíz (lo he ejecutado hoy contra el árbol: exit 0); el quinto, que el slice
-no ha tocado nada protegido desde la base de la rama (`5b2ccb1`) — ejecutado hoy, exit 0.
+fuente de verdad; el cuarto, que la nota de la revisión está ahí y niega las dos cosas
+(ejecutado ni pasado); el quinto, que lo que dice de los scripts sigue siendo cierto en el
+`package.json` de la raíz (ejecutado hoy contra el árbol: exit 0); el sexto, que el slice no ha
+tocado nada protegido desde la base de la rama (`5b2ccb1`) — ejecutado hoy, exit 0.
 
 ```bash
 test -f docs/verification/ct-138-local-checks.md   # expected: exit 0 — el fichero existe
 test "$(grep -cE '^- `npm (install|run build|test|run lint)`' docs/verification/ct-138-local-checks.md)" -eq 4   # expected: exit 0 — los cuatro comandos, uno por línea
 test "$(grep -c 'engines.node' docs/verification/ct-138-local-checks.md)" -eq 1   # expected: exit 0 — la fuente de verdad de Node, nombrada una vez
+test "$(grep -c 'no evidencia' docs/verification/ct-138-local-checks.md)" -eq 1 && test "$(grep -c 'se hayan ejecutado ni que hayan pasado' docs/verification/ct-138-local-checks.md)" -eq 1   # expected: exit 0 — la nota está y niega ejecución y resultado
 test "$(grep -c '"lint": "eslint \."' package.json)" -eq 1   # expected: exit 0 — lo que el documento dice de `npm run lint` sigue siendo cierto
 test -z "$(git diff --name-only 5b2ccb19753c4c96a4d31028d25de36c2dcce676..HEAD -- AGENTS.md README.md package.json package-lock.json eslint.config.js tsconfig.base.json server web .github)"   # expected: exit 0 — nada protegido ha cambiado
 ```
@@ -183,5 +191,9 @@ test -z "$(git status --porcelain)"   # expected: exit 0 — nada sin commitear
    Procedencia: issue + estado del repositorio.
 6. **La suite no se ejecuta como control del slice.** Ver §6 y §8: el baseline está
    no-verificado y el diff no sale de `docs/`. Procedencia: `.agent/SLICE.md` + decisión propia.
-7. **Sin tests y sin TDD**, declarado en la tarea con `No TDD — …`: no hay comportamiento.
+7. **La nota de «instrucciones, no evidencia»** la pidió una persona al revisar este plan, con
+   el alcance intacto: sigue siendo una sola tarea documental y un solo fichero. La escribo en
+   el documento (no en el plan) porque quien la tiene que leer es quien abre el documento.
+   Procedencia: revisión humana del plan (2026-09-10).
+8. **Sin tests y sin TDD**, declarado en la tarea con `No TDD — …`: no hay comportamiento.
    Procedencia: decisión propia.
