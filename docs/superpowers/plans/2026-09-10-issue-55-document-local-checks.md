@@ -151,21 +151,25 @@ test -z "$(git diff --name-only 5b2ccb19753c4c96a4d31028d25de36c2dcce676..HEAD -
 
 ## 8. Global verification
 
-Con la única tarea commiteada, desde la raíz. El primer predicado prueba que el slice añadió
-exactamente un fichero sobre la base de la rama además del propio plan; el segundo, que ese
-fichero es el documento; el tercero, que el árbol queda limpio. Los tres los he ejecutado hoy
-contra el árbol de trabajo con el resultado que esperan una vez la tarea esté commiteada, salvo
-el primero, que hoy cuenta solo el plan.
+Con la única tarea commiteada, desde la raíz. El primer predicado prueba que, fuera de los
+artefactos que el propio loop commitea bajo `docs/superpowers/` (el plan, el veredicto de la
+tarea y las métricas del run), el slice añade **un** fichero y nada más; el segundo, que ese
+fichero es el documento, por su nombre exacto; el tercero, que todo el diff vive en `docs/`; el
+cuarto, que no queda nada sin commitear fuera de `docs/superpowers/`, que es donde viven los
+artefactos que el propio loop escribe mientras corre (las métricas del run, el veredicto) y la
+enmienda de este plan, que se commitea a mano antes de abrir el pull request. Los cuatro,
+ejecutados hoy: exit 0.
 
 `npm run build`, `npm test` y `npm run lint` no entran como control de este slice: el diff no
-sale de `docs/**.md`, y eso es justo lo que mide el segundo predicado. El baseline de este
-worktree está declarado **no-verificado** en `.agent/SLICE.md`, así que un verde suyo aquí no
-mediría el slice sino el estado previo del repositorio.
+sale de `docs/**`, y eso es justo lo que mide el tercer predicado. El baseline de este worktree
+está declarado **no-verificado** en `.agent/SLICE.md`, así que un verde suyo aquí no mediría el
+slice sino el estado previo del repositorio.
 
 ```bash
-test "$(git diff --name-only 5b2ccb19753c4c96a4d31028d25de36c2dcce676..HEAD | wc -l)" -eq 2   # expected: exit 0 — el plan y el documento, nada más
+test "$(git diff --name-only 5b2ccb19753c4c96a4d31028d25de36c2dcce676..HEAD | grep -cv '^docs/superpowers/')" -eq 1   # expected: exit 0 — un solo fichero de producto
+test "$(git diff --name-only 5b2ccb19753c4c96a4d31028d25de36c2dcce676..HEAD | grep -c '^docs/verification/ct-138-local-checks.md$')" -eq 1   # expected: exit 0 — y es el documento
 test -z "$(git diff --name-only 5b2ccb19753c4c96a4d31028d25de36c2dcce676..HEAD | grep -v '^docs/')"   # expected: exit 0 — todo el diff vive en docs/
-test -z "$(git status --porcelain)"   # expected: exit 0 — nada sin commitear
+test -z "$(git status --porcelain -- . ':!docs/superpowers')"   # expected: exit 0 — nada sin commitear fuera de los artefactos del loop
 ```
 
 ## 9. Assumptions
@@ -195,5 +199,15 @@ test -z "$(git status --porcelain)"   # expected: exit 0 — nada sin commitear
    el alcance intacto: sigue siendo una sola tarea documental y un solo fichero. La escribo en
    el documento (no en el plan) porque quien la tiene que leer es quien abre el documento.
    Procedencia: revisión humana del plan (2026-09-10).
-8. **Sin tests y sin TDD**, declarado en la tarea con `No TDD — …`: no hay comportamiento.
+8. **La verificación global de §8 se enmendó durante la implementación.** Su primer predicado
+   contaba dos ficheros en el diff (el plan y el documento) y dejaba fuera los artefactos que
+   la maquinaria del loop commitea sola: `docs/superpowers/verdicts/issue-55-task-1.json` y
+   `docs/superpowers/metrics/issue-55.jsonl`. Con cuatro ficheros en el diff, el control se
+   puso rojo por un dato falso del plan, no por el trabajo. Ahora mide lo que quería medir: un
+   único fichero de producto, y que es el documento. Su cuarto predicado tampoco puede exigir
+   el árbol entero limpio: `docs/superpowers/` es donde el loop escribe mientras corre, y esta
+   propia enmienda vive ahí hasta que se commitea a mano antes de abrir el pull request — que
+   es lo que la máquina pide para el material que no sale de una tarea. Procedencia:
+   `ct-step global` en rojo y `ct-step next` en PRECONDITION (2026-09-10).
+9. **Sin tests y sin TDD**, declarado en la tarea con `No TDD — …`: no hay comportamiento.
    Procedencia: decisión propia.
