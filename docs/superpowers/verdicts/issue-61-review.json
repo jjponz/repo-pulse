@@ -1,0 +1,56 @@
+{
+  "issue": 61,
+  "tasks_total": 1,
+  "verdict": {
+    "ruling": "PASS",
+    "rubric": [
+      {
+        "rule": "objetivo",
+        "result": "The new document names build, test and lint, each with its exact command from the root package.json (\"npm run build --workspaces\", \"npm run test --workspaces\", \"eslint .\") and what it runs, checked against server/package.json and web/package.json.",
+        "outcome": "conforme"
+      },
+      {
+        "rule": "asercion-tdd",
+        "result": "Does not apply: the TDD line reads \"No TDD — the deliverable is a document\".",
+        "outcome": "no-aplica"
+      },
+      {
+        "rule": "contrato",
+        "result": "No Contract or Call site blocks. The Final text block for docs/verification/ct-680-root-scripts-2.md appears verbatim in the diff, all nine lines of it.",
+        "outcome": "conforme"
+      },
+      {
+        "rule": "decisiones-cerradas",
+        "result": "Output file: only docs/verification/ct-680-root-scripts-2.md is added. Language: Spanish. Sources of the facts: the commands match package.json, server/package.json and web/package.json. Shape: one table with the columns Script, Comando exacto and Qué ejecuta. All four rows comply.",
+        "outcome": "conforme"
+      },
+      {
+        "rule": "patrones",
+        "result": "Files to imitate: N/A per the plan. AGENTS.md: the document is text a person reads, and it is in Spanish, as the rule asks. The Do NOT touch section is untouched. The diff is prose, and the ct yardstick has no code in it to measure. defects.md, rule by rule: closed vocabulary: no subject (no code). Raw map as the return value of logic: no subject. Two fields that have to agree: no subject. Error named for where it happens: no subject.",
+        "outcome": "no-aplica"
+      },
+      {
+        "rule": "manipulacion-tests",
+        "result": "Does not apply: the diff has no '-' lines and touches no test file.",
+        "outcome": "no-aplica"
+      },
+      {
+        "rule": "fixture-theater",
+        "result": "Does not apply: Files declares only a document, and the task delivers text.",
+        "outcome": "no-aplica"
+      },
+      {
+        "rule": "alcance",
+        "result": "The diff touches exactly the one path in Files, marked (create), and the file is new (new file mode). There are no surplus paths, no missing paths and no plan amendment. README.md, AGENTS.md, package.json, server and web are untouched, as Out of scope requires.",
+        "outcome": "conforme"
+      },
+      {
+        "rule": "test-desiderata",
+        "result": "Does not apply: the diff adds no test.",
+        "outcome": "no-aplica"
+      }
+    ],
+    "findings": [],
+    "review_token": "834c886ce138d2e8e761f1ec831a7c4ff9920bf830a8ccb67ddf857d8f206a13"
+  }
+}
