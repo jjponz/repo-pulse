@@ -1,0 +1,26 @@
+{
+  "issue": 61,
+  "tasks_total": 1,
+  "verdict": {
+    "ruling": "PASS",
+    "rubric": [
+      {
+        "rule": "estado-final",
+        "result": "The one sentence of Desired end state ('THE document SHALL name every script of the root package.json with its exact command') is delivered by the sum of the diff: docs/verification/ct-680-root-scripts-2.md is created with rows for build (`npm run build --workspaces`), test (`npm run test --workspaces`) and lint (`eslint .`), and the green Global verification predicate reads every script from the root package.json against that document. No later commit touches the file.",
+        "outcome": "conforme"
+      },
+      {
+        "rule": "coherencia",
+        "result": "Three commits: 620c339 (Task 1, the document), 6d49474 (the task judge's verdict) and b1b35c5 (telemetry). The last two only add files under docs/superpowers/ and neither modifies or reverts the document from Task 1. The plan has one task, so no two tasks solve the same problem, and no scaffolding is left behind.",
+        "outcome": "conforme"
+      },
+      {
+        "rule": "observabilidad",
+        "result": "The Señal section reads '(sin señal declarada — el issue no trae la sección \"## Señal de observabilidad\"...)': the slice was never asked to promise a signal, so there is nothing to measure against.",
+        "outcome": "sin-vara"
+      }
+    ],
+    "findings": [],
+    "review_token": "2a08cac8bf6d978877fa3f59c6215d316a8453a67b75ab8f1b93bd03d593edf6"
+  }
+}
